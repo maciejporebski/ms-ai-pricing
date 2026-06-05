@@ -22,12 +22,24 @@ test("comparison table renders models, deployment columns and token prices", asy
   expect(rowCount).toBeGreaterThan(20);
 });
 
-test("PTU (per-PTU) billing appears as its own section with hourly pricing", async ({ page }) => {
+test("provisioned (PTU) pricing is integrated as columns in each model row", async ({ page }) => {
   await waitForData(page);
-  const ptu = page.getByTestId("section-PTU");
-  await expect(ptu).toBeVisible();
-  await expect(ptu).toContainText("PTU/hr");
-  await expect(ptu.getByTestId("table-PTU").locator("tbody")).toContainText("$");
+  const s = page.getByTestId("filters").locator("select");
+  await s.first().selectOption({ label: "OpenAI" });
+  await s.nth(1).selectOption({ label: "5.4 mini" });
+  const tbl = page.getByTestId("table-Tokens");
+  await expect(tbl).toBeVisible();
+  // Provisioned columns are grafted on from the provider's PTU pricing.
+  await expect(tbl.locator("thead")).toContainText("Provisioned");
+  await expect(tbl.locator("tbody")).toContainText("PTU/hr");
+});
+
+test("PTU still has a dedicated table when its category is selected", async ({ page }) => {
+  await waitForData(page);
+  await page.getByTestId("filters").locator("select").nth(4).selectOption({ label: "PTU" });
+  const sec = page.getByTestId("section-PTU");
+  await expect(sec).toBeVisible();
+  await expect(sec).toContainText("PTU/hr");
 });
 
 test("non-token billing categories are present (Images, Pages)", async ({ page }) => {

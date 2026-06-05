@@ -3,19 +3,19 @@ import { buildCategoryMatrix, categoriesPresent, fmtUSD, CATEGORY_HINTS } from "
 
 const DIR_ABBR = { Input: "In", Output: "Out", "Cached Input": "Cached" };
 
-function Cell({ cell, seriesList, isToken }) {
-  if (!cell) return <td className="pt-cell empty">—</td>;
+function Cell({ items }) {
+  if (!items || items.length === 0) return <td className="pt-cell empty">—</td>;
   return (
     <td className="pt-cell">
-      {seriesList.map((s) => {
-        const p = cell[s];
+      {items.map(({ key, p }) => {
         if (!p) return null;
-        const label = isToken ? DIR_ABBR[s] || s : s;
+        const label = DIR_ABBR[key] || key;
+        const provisioned = /PTU|unit\//i.test(key);
         const title = p.varies
           ? `Varies by region: ${fmtUSD(p.min)}–${fmtUSD(p.max)} (${p.count} meters)`
           : p.sample.meterName;
         return (
-          <div key={s} className="pt-price" title={title}>
+          <div key={key} className={`pt-price${provisioned ? " pt-ptu" : ""}`} title={title}>
             <span className="pt-dir">{label}</span>
             <span className="pt-val">{fmtUSD(p.price)}{p.varies ? "*" : ""}</span>
           </div>
@@ -25,10 +25,10 @@ function Cell({ cell, seriesList, isToken }) {
   );
 }
 
-function CategorySection({ records, category, onSelectModel }) {
-  const { rows, deployments, seriesList, isToken } = useMemo(
-    () => buildCategoryMatrix(records, category),
-    [records, category]
+function CategorySection({ records, category, ptuRecords, onSelectModel }) {
+  const { rows, deployments, augmented } = useMemo(
+    () => buildCategoryMatrix(records, category, ptuRecords),
+    [records, category, ptuRecords]
   );
   if (rows.length === 0) return null;
 
@@ -39,6 +39,12 @@ function CategorySection({ records, category, onSelectModel }) {
       </h3>
       <p className="table-hint">
         {CATEGORY_HINTS[category] || "Native unit pricing."}{" "}
+        {augmented && (
+          <span>
+            <strong className="pt-ptu">Provisioned</strong> columns are per-PTU rates for the model's
+            provider (PTU is not billed per model).{" "}
+          </span>
+        )}
         <strong>*</strong> = varies across regions (hover for range). Click a model for raw meters.
       </p>
       <div className="table-wrap">
@@ -48,7 +54,7 @@ function CategorySection({ records, category, onSelectModel }) {
               <th className="pt-sticky">Provider</th>
               <th className="pt-sticky2">Model</th>
               {deployments.map((d) => (
-                <th key={d}>{d}</th>
+                <th key={d} className={/Provisioned/.test(d) ? "pt-ptu-col" : ""}>{d}</th>
               ))}
             </tr>
           </thead>
@@ -62,7 +68,7 @@ function CategorySection({ records, category, onSelectModel }) {
                   </button>
                 </td>
                 {deployments.map((d) => (
-                  <Cell key={d} cell={row.cells[d]} seriesList={seriesList} isToken={isToken} />
+                  <Cell key={d} items={row.cells[d]} />
                 ))}
               </tr>
             ))}
@@ -73,19 +79,34 @@ function CategorySection({ records, category, onSelectModel }) {
   );
 }
 
-export default function PricingTable({ records, selectedCategory, onSelectModel }) {
-  // With a category filter active, show only that section; otherwise stack every
-  // billing model present (Tokens, PTU, Images, Pages, …).
-  const categories = selectedCategory ? [selectedCategory] : categoriesPresent(records);
+export default function PricingTable({ records, selectedCategory, ptuRecords, onSelectModel }) {
+  // With a category filter active, show only that section. Otherwise stack every
+  // non-PTU billing model (Tokens, Images, …) — PTU is integrated as Provisioned
+  // columns in each model row, so it isn't shown as a separate "All models" table.
+  const categories = useMemo(() => {
+    if (selectedCategory) return [selectedCategory];
+    const present = categoriesPresent(records);
+    const nonPtu = present.filter((c) => c !== "PTU");
+    return nonPtu.length ? nonPtu : present;
+  }, [records, selectedCategory]);
 
   if (categories.length === 0) {
     return <p className="empty-note">No models match the current filters.</p>;
   }
 
+  // Don't graft PTU columns when the user is explicitly viewing the PTU table.
+  const augmentSource = selectedCategory === "PTU" ? null : ptuRecords;
+
   return (
     <div data-testid="pricing-table">
       {categories.map((c) => (
-        <CategorySection key={c} records={records} category={c} onSelectModel={onSelectModel} />
+        <CategorySection
+          key={c}
+          records={records}
+          category={c}
+          ptuRecords={augmentSource}
+          onSelectModel={onSelectModel}
+        />
       ))}
     </div>
   );

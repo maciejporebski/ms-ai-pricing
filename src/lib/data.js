@@ -122,10 +122,39 @@ export function categoriesPresent(records) {
 // deployment types. Each cell holds one or more priced "series": for token
 // categories the series are Input/Output/Cached (per 1M tokens); for everything
 // else the series are the billing measures (PTU/hr, megapixel, page, session…).
-export function buildCategoryMatrix(records, category) {
+//
+// ptuRecords (optional): provider-level PTU rows used to graft Provisioned
+// columns onto every model row, since PTU is billed per-provider not per-model.
+const DIR_RANK = { Input: 0, Output: 1, "Cached Input": 2 };
+function seriesRank(s) {
+  return DIR_RANK[s] != null ? DIR_RANK[s] : 100;
+}
+function cellArray(sMap) {
+  return [...sMap.keys()]
+    .sort((a, b) => seriesRank(a) - seriesRank(b) || a.localeCompare(b))
+    .map((key) => ({ key, p: pickPrice(sMap.get(key)) }));
+}
+
+function ptuByProvider(ptuRecords) {
+  const map = new Map(); // provider -> Map<deployment, Map<series, rows[]>>
+  const deps = new Set();
+  for (const r of ptuRecords) {
+    const series = r.term ? `${r.measure} · ${r.term}` : r.measure;
+    if (!map.has(r.provider)) map.set(r.provider, new Map());
+    const dm = map.get(r.provider);
+    if (!dm.has(r.deployment)) dm.set(r.deployment, new Map());
+    const sm = dm.get(r.deployment);
+    if (!sm.has(series)) sm.set(series, []);
+    sm.get(series).push(r);
+    deps.add(r.deployment);
+  }
+  return { map, deps: [...deps] };
+}
+
+export function buildCategoryMatrix(records, category, ptuRecords = null) {
   const isToken = category === "Tokens";
   const rows0 = records.filter((r) => r.category === category && valueOf(r) != null);
-  const deployments = orderDeployments(uniqueSorted(rows0, "deployment"));
+  const baseDeps = uniqueSorted(rows0, "deployment");
 
   const tree = new Map();
   for (const r of rows0) {
@@ -139,25 +168,25 @@ export function buildCategoryMatrix(records, category) {
     dep.get(series).push(r);
   }
 
-  const seriesSet = new Set();
+  // Provider-derived Provisioned (PTU) columns, attached to every model row.
+  const ptu = ptuRecords && category !== "PTU" ? ptuByProvider(ptuRecords) : null;
+
   const rows = [];
   for (const [, node] of tree) {
     const cells = {};
-    for (const [dep, sMap] of node.deps) {
-      cells[dep] = {};
-      for (const s of sMap.keys()) {
-        cells[dep][s] = pickPrice(sMap.get(s));
-        seriesSet.add(s);
+    for (const [dep, sMap] of node.deps) cells[dep] = cellArray(sMap);
+    if (ptu && ptu.map.has(node.provider)) {
+      for (const [dep, sMap] of ptu.map.get(node.provider)) {
+        if (!cells[dep]) cells[dep] = cellArray(sMap);
       }
     }
-    rows.push({ provider: node.provider, model: node.model, cells });
+    rows.push({ provider: node.provider, model: node.model, cells, hasPTU: !!(ptu && ptu.map.has(node.provider)) });
   }
   rows.sort((a, b) => a.provider.localeCompare(b.provider) || a.model.localeCompare(b.model));
 
-  const seriesList = isToken
-    ? TOKEN_DIRECTIONS.filter((d) => seriesSet.has(d))
-    : [...seriesSet].sort();
-  return { rows, deployments, seriesList, isToken, category };
+  const allDeps = [...new Set([...baseDeps, ...(ptu ? ptu.deps : [])])];
+  const deployments = orderDeployments(allDeps);
+  return { rows, deployments, isToken, category, augmented: !!ptu };
 }
 
 // Token calculator: collapse to one price per model+deployment+direction.

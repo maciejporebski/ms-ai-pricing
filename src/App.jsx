@@ -54,6 +54,14 @@ export default function App() {
     () => (records ? applyFilters(records, filters) : []),
     [records, filters]
   );
+  // PTU rows used to graft Provisioned columns onto each model row. Scoped only by
+  // provider/region (PTU is provider-wide), so the model/deployment/category filters
+  // don't hide it.
+  const ptuRecords = useMemo(() => {
+    if (!records) return [];
+    return applyFilters(records, { provider: filters.provider, region: filters.region })
+      .filter((r) => r.category === "PTU");
+  }, [records, filters.provider, filters.region]);
 
   if (state.error) {
     return (
@@ -116,7 +124,7 @@ export default function App() {
           clearAll={() => setFilter({ ...EMPTY })}
         />
       ) : tab === "table" ? (
-        <PricingTable records={filtered} selectedCategory={filters.category} onSelectModel={setSelected} />
+        <PricingTable records={filtered} selectedCategory={filters.category} ptuRecords={ptuRecords} onSelectModel={setSelected} />
       ) : (
         <Calculator records={filtered} category={filters.category} />
       )}
