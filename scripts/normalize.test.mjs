@@ -97,3 +97,56 @@ test("lowConfidence flag only when both deployment Standard and direction Flat",
   }));
   assert.equal(amb.deployment, "Standard");
 });
+
+test("PTU consumption: category PTU, hourly measure, no term", () => {
+  const r = normalize(row({
+    productName: "Azure Llama Models", skuName: "Provisioned Managed Data Zone",
+    meterName: "Provisioned Managed Data Zone Unit", unitOfMeasure: "1/Hour",
+    retailPrice: 1.1, type: "Consumption", reservationTerm: undefined,
+  }));
+  assert.equal(r.category, "PTU");
+  assert.equal(r.measure, "PTU/hr");
+  assert.equal(r.isHourly, true);
+  assert.equal(r.term, null);
+  assert.equal(r.pricePer1M, null);
+});
+
+test("PTU reservation: kept, with term and type", () => {
+  const r = normalize(row({
+    productName: "Azure AI Foundry Provisioned Throughput Reservation",
+    skuName: "Provisioned Managed Regional", meterName: "Provisioned Managed Regional Unit",
+    unitOfMeasure: "1/Hour", retailPrice: 2916, type: "Reservation", reservationTerm: "1 Year",
+  }));
+  assert.equal(r.category, "PTU");
+  assert.equal(r.type, "Reservation");
+  assert.equal(r.term, "1 Year");
+});
+
+test("Doc AI pages: category Pages billed per 1K, not tokens", () => {
+  const r = normalize(row({
+    productName: "Azure Mistral Models", skuName: "Doc AI glbl 2505",
+    meterName: "Doc AI glbl 2505 Pages", unitOfMeasure: "1K", retailPrice: 3.3,
+  }));
+  assert.equal(r.category, "Pages");
+  assert.equal(r.measure, "1K pages");
+  assert.equal(r.pricePer1M, null);
+  assert.equal(r.price, 3.3);
+});
+
+test("Speech characters: category Characters, not tokens", () => {
+  const r = normalize(row({
+    productName: "Azure OpenAI Media", skuName: "Speech-Text to Speech-global",
+    meterName: "Speech-Text to Speech-global Characters", unitOfMeasure: "1M", retailPrice: 15,
+  }));
+  assert.equal(r.category, "Characters");
+  assert.equal(r.measure, "1M chars");
+  assert.equal(r.pricePer1M, null);
+});
+
+test("measureLabel covers key billing units", () => {
+  assert.equal(_internals.measureLabel("1/Hour", "Provisioned Managed Global Unit", "PTU"), "PTU/hr");
+  assert.equal(_internals.measureLabel("1/Month", "x Unit", "PTU"), "PTU/mo");
+  assert.equal(_internals.measureLabel("1", "Flex Megapixel", "Images"), "megapixel");
+  assert.equal(_internals.measureLabel("1", "Code-Interpreter-global Session", "Session"), "session");
+  assert.equal(_internals.measureLabel("1/Day", "Assistants-File Search-glbl GB", "Search"), "GB/day");
+});

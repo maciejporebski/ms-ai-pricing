@@ -48,18 +48,26 @@ export function applyFilters(records, f) {
 
 // Deterministic price pick when several rows collapse to one cell (e.g. several
 // regions, effective dates). Prefer most recent effectiveDate, then lowest price.
+// Value is the per-1M token price for token rows, else the native unit price.
+function valueOf(r) {
+  return r.category === "Tokens" ? r.pricePer1M : r.price;
+}
+
 function pickPrice(rows) {
   if (rows.length === 0) return null;
   const sorted = [...rows].sort((a, b) => {
     const d = (b.effectiveDate || "").localeCompare(a.effectiveDate || "");
     if (d !== 0) return d;
-    return a.price - b.price;
+    return valueOf(a) - valueOf(b);
   });
   const best = sorted[0];
-  const prices = [...new Set(rows.map((r) => r.pricePer1M ?? r.price))];
+  const prices = [...new Set(rows.map(valueOf))];
   return {
-    price: best.pricePer1M ?? best.price,
+    price: valueOf(best),
     unit: best.unit,
+    measure: best.measure,
+    term: best.term,
+    type: best.type,
     count: rows.length,
     varies: prices.length > 1,
     min: Math.min(...prices),
@@ -87,37 +95,72 @@ function orderDeployments(list) {
   });
 }
 
-// Comparison matrix: rows = models, columns = deployment types, each cell holds
-// Input/Output/Cached prices per 1M tokens. Token category only.
-export function buildMatrix(records) {
-  const tokenRows = records.filter((r) => r.category === "Tokens" && r.pricePer1M != null);
-  const deployments = orderDeployments(uniqueSorted(tokenRows, "deployment"));
+// Display order for the per-category table sections.
+export const CATEGORY_ORDER = ["Tokens", "PTU", "Images", "Pages", "Characters", "Search", "Session", "Hosting", "Calls", "Other"];
+
+export const CATEGORY_HINTS = {
+  Tokens: "USD per 1M tokens. In = input, Out = output, Cached = cached input.",
+  PTU: "Provisioned Throughput Units — billed per PTU. /hr = hourly (pay-as-you-go), /mo = monthly; reservation commitments show their term (1 Month / 1 Year).",
+  Images: "Billed per image / megapixel.",
+  Pages: "Billed per page (most Doc AI / OCR meters are per 1K pages).",
+  Characters: "Text-to-speech, billed per character (per 1K / 1M).",
+  Search: "Billed per GB (file search / storage), often per day.",
+  Session: "Billed per active session.",
+  Hosting: "Fine-tuning training / hosting, billed per unit-hour.",
+  Calls: "Billed per API/tool call.",
+  Other: "Miscellaneous units (e.g. per second of generated video).",
+};
+
+export function categoriesPresent(records) {
+  const set = new Set(records.map((r) => r.category));
+  const ordered = CATEGORY_ORDER.filter((c) => set.has(c));
+  const extra = [...set].filter((c) => !CATEGORY_ORDER.includes(c)).sort();
+  return [...ordered, ...extra];
+}
+
+// Generic comparison matrix for ANY billing category. Rows = models, columns =
+// deployment types. Each cell holds one or more priced "series": for token
+// categories the series are Input/Output/Cached (per 1M tokens); for everything
+// else the series are the billing measures (PTU/hr, megapixel, page, session…).
+export function buildCategoryMatrix(records, category) {
+  const isToken = category === "Tokens";
+  const rows0 = records.filter((r) => r.category === category && valueOf(r) != null);
+  const deployments = orderDeployments(uniqueSorted(rows0, "deployment"));
 
   const tree = new Map();
-  for (const r of tokenRows) {
-    const modelKey = `${r.provider}||${r.model}`;
-    if (!tree.has(modelKey)) tree.set(modelKey, { provider: r.provider, model: r.model, deps: new Map() });
-    const node = tree.get(modelKey);
+  for (const r of rows0) {
+    const mk = `${r.provider}||${r.model}`;
+    if (!tree.has(mk)) tree.set(mk, { provider: r.provider, model: r.model, deps: new Map() });
+    const node = tree.get(mk);
     if (!node.deps.has(r.deployment)) node.deps.set(r.deployment, new Map());
-    const depNode = node.deps.get(r.deployment);
-    if (!depNode.has(r.direction)) depNode.set(r.direction, []);
-    depNode.get(r.direction).push(r);
+    const dep = node.deps.get(r.deployment);
+    const series = isToken ? r.direction : r.term ? `${r.measure} · ${r.term}` : r.measure;
+    if (!dep.has(series)) dep.set(series, []);
+    dep.get(series).push(r);
   }
 
+  const seriesSet = new Set();
   const rows = [];
   for (const [, node] of tree) {
     const cells = {};
-    for (const [dep, dirMap] of node.deps) {
+    for (const [dep, sMap] of node.deps) {
       cells[dep] = {};
-      for (const dir of dirMap.keys()) cells[dep][dir] = pickPrice(dirMap.get(dir));
+      for (const s of sMap.keys()) {
+        cells[dep][s] = pickPrice(sMap.get(s));
+        seriesSet.add(s);
+      }
     }
     rows.push({ provider: node.provider, model: node.model, cells });
   }
   rows.sort((a, b) => a.provider.localeCompare(b.provider) || a.model.localeCompare(b.model));
-  return { rows, deployments };
+
+  const seriesList = isToken
+    ? TOKEN_DIRECTIONS.filter((d) => seriesSet.has(d))
+    : [...seriesSet].sort();
+  return { rows, deployments, seriesList, isToken, category };
 }
 
-// Collapse to one price per model+deployment+direction within (filtered) rows.
+// Token calculator: collapse to one price per model+deployment+direction.
 export function buildModelPricing(records) {
   const tokenRows = records.filter((r) => r.category === "Tokens" && r.pricePer1M != null);
   const map = new Map();
@@ -139,6 +182,32 @@ export function buildModelPricing(records) {
     const priced = {};
     for (const dir of Object.keys(e.dirs)) priced[dir] = pickPrice(e.dirs[dir]);
     out.push({ ...e, prices: priced });
+  }
+  return out;
+}
+
+// Unit calculator (non-token): one price per model+deployment+measure+term.
+export function buildUnitPricing(records, category) {
+  const rows0 = records.filter((r) => r.category === category);
+  const map = new Map();
+  for (const r of rows0) {
+    const key = `${r.provider}||${r.model}||${r.deployment}||${r.measure}||${r.term || ""}`;
+    if (!map.has(key)) {
+      map.set(key, {
+        provider: r.provider, model: r.model, deployment: r.deployment,
+        measure: r.measure, unit: r.unit, isHourly: r.isHourly, term: r.term, type: r.type, rows: [],
+      });
+    }
+    map.get(key).rows.push(r);
+  }
+  const out = [];
+  for (const [, e] of map) {
+    const p = pickPrice(e.rows);
+    out.push({
+      provider: e.provider, model: e.model, deployment: e.deployment,
+      measure: e.measure, unit: e.unit, isHourly: e.isHourly, term: e.term, type: e.type,
+      price: p.price, varies: p.varies, min: p.min, max: p.max, meterName: p.sample.meterName,
+    });
   }
   return out;
 }

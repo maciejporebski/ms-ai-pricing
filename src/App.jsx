@@ -107,9 +107,9 @@ export default function App() {
       </nav>
 
       {tab === "table" ? (
-        <PricingTable records={filtered} onSelectModel={setSelected} />
+        <PricingTable records={filtered} selectedCategory={filters.category} onSelectModel={setSelected} />
       ) : (
-        <Calculator records={filtered} />
+        <Calculator records={filtered} category={filters.category} />
       )}
 
       <footer className="app-foot">

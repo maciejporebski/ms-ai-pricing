@@ -79,16 +79,26 @@ function modelName(productName, sku) {
   return m;
 }
 
-function category(unit, meterName) {
+function category(unit, meterName, deployment) {
   const m = meterName.toLowerCase();
-  if (/token/.test(m) || unit === "1M" || unit === "1K") return "Tokens";
+  const u = unit.toLowerCase();
+  // PTU: provisioned throughput, billed per unit/hour or as a reservation.
+  if (/provisioned (managed|throughput)|provisioned throughput|\bptu\b/.test(m) || /^provisioned/i.test(deployment))
+    return "PTU";
+  // Explicit per-token meters always carry "Token(s)" in the meter name.
+  if (/token/.test(m)) return "Tokens";
+  // Explicit unit nouns must win over the generic 1M/1K token fallback below
+  // (e.g. Doc AI "Pages" is billed per 1K pages, Speech per 1M characters).
   if (/image|megapixel/.test(m)) return "Images";
-  if (/page/.test(m)) return "Pages";
-  if (/search/.test(m)) return "Search";
+  if (/\bpage/.test(m)) return "Pages";
+  if (/character/.test(m)) return "Characters";
+  if (/search|\bgb\b/.test(m)) return "Search";
   if (/session/.test(m)) return "Session";
-  if (/call/.test(m)) return "Calls";
-  if (/hour|second|day|month/.test(unit.toLowerCase())) return "Hosting";
-  if (/unit/.test(m)) return "Hosting";
+  if (/\bcall/.test(m)) return "Calls";
+  if (/\bsecond\b/.test(m)) return "Other";
+  // Fallback: a bare 1M/1K meter with no other noun is token-like.
+  if (u === "1m" || u === "1k") return "Tokens";
+  if (/hour|second|day|month/.test(u) || /\bunit\b|hosting/.test(m)) return "Hosting";
   return "Other";
 }
 
@@ -98,13 +108,39 @@ function pricePer1M(price, unit) {
   return price;
 }
 
+// Friendly billing-unit noun, derived from the meter name's trailing word and
+// the unit-of-measure. Drives non-token price display (e.g. "/PTU-hr", "/image").
+function measureLabel(unit, meterName, category) {
+  const u = unit.toLowerCase();
+  const last = (meterName.trim().split(/\s+/).pop() || "").replace(/[^A-Za-z]/g, "");
+  if (category === "Tokens") return "1M tokens";
+  if (category === "PTU") {
+    if (u.includes("hour")) return "PTU/hr";
+    if (u.includes("month")) return "PTU/mo";
+    return "PTU";
+  }
+  if (category === "Pages") return u === "1k" ? "1K pages" : u === "1m" ? "1M pages" : "page";
+  if (category === "Characters") return u === "1k" ? "1K chars" : u === "1m" ? "1M chars" : "char";
+  if (/megapixel/i.test(meterName)) return u === "100" ? "100 MP" : "megapixel";
+  if (/image/i.test(meterName)) return "image";
+  if (/\bsearch\b|\bGB\b/i.test(meterName)) return u.includes("day") ? "GB/day" : "GB";
+  if (/session/i.test(meterName)) return "session";
+  if (/\bcall/i.test(meterName)) return "call";
+  if (/second/i.test(meterName)) return "second";
+  if (u.includes("hour")) return last ? `${last}/hr` : "unit/hr";
+  if (u.includes("month")) return "unit/mo";
+  if (u.includes("day")) return "unit/day";
+  return last || "unit";
+}
+
 export function normalize(row) {
   const prov = provider(row.productName);
   const dep = deployment(row.skuName);
   const dir = direction(row.skuName + " " + row.meterName);
-  const cat = category(row.unitOfMeasure, row.meterName);
+  const cat = category(row.unitOfMeasure, row.meterName, dep);
   const model = modelName(row.productName, row.skuName);
   const tokenUnit = row.unitOfMeasure === "1M" || row.unitOfMeasure === "1K";
+  const isHourly = /hour/i.test(row.unitOfMeasure);
   return {
     provider: prov,
     productName: row.productName,
@@ -112,17 +148,20 @@ export function normalize(row) {
     deployment: dep,
     direction: dir,
     category: cat,
+    measure: measureLabel(row.unitOfMeasure, row.meterName, cat),
     region: row.armRegionName || "",
     location: row.location || "",
     unit: row.unitOfMeasure,
+    isHourly,
     price: row.retailPrice,
     pricePer1M: cat === "Tokens" && tokenUnit ? pricePer1M(row.retailPrice, row.unitOfMeasure) : null,
-    lowConfidence: dep === "Standard" && dir === "Flat",
+    lowConfidence: dep === "Standard" && dir === "Flat" && cat === "Tokens",
     type: row.type,
+    term: row.reservationTerm || null,
     meterName: row.meterName,
     skuName: row.skuName,
     effectiveDate: row.effectiveStartDate,
   };
 }
 
-export const _internals = { provider, deployment, direction, modelName, category, scopeOf };
+export const _internals = { provider, deployment, direction, modelName, category, scopeOf, measureLabel };

@@ -45,14 +45,13 @@ function main() {
   return fetchAll().then((raw) => {
     console.log(`Fetched ${raw.length} raw rows.`);
 
-    // Keep Consumption (per-use) rows; drop Reservation rows which are 1/3-year
-    // commitments and not comparable in a per-token table.
-    const consumption = raw.filter((r) => r.type === "Consumption");
-    const records = consumption.map(normalize);
+    // Keep every billing model: Consumption (per-token, per-PTU-hour, per-image,
+    // per-page, per-session, …) and Reservation (PTU 1-month/1-year commitments).
+    const records = raw.map(normalize);
 
     if (records.length < MIN_EXPECTED_ROWS) {
       throw new Error(
-        `Snapshot guard: only ${records.length} consumption rows (expected >= ${MIN_EXPECTED_ROWS}). Aborting to avoid publishing a broken dataset.`
+        `Snapshot guard: only ${records.length} rows (expected >= ${MIN_EXPECTED_ROWS}). Aborting to avoid publishing a broken dataset.`
       );
     }
 
@@ -67,6 +66,7 @@ function main() {
       regions: [...new Set(records.map((r) => r.region))].filter(Boolean).sort(),
       deployments: [...new Set(records.map((r) => r.deployment))].sort(),
       categories: [...new Set(records.map((r) => r.category))].sort(),
+      billingTypes: [...new Set(records.map((r) => r.type))].sort(),
     };
 
     fs.mkdirSync(OUT_DIR, { recursive: true });
@@ -75,7 +75,7 @@ function main() {
 
     const bytes = fs.statSync(path.join(OUT_DIR, "pricing.json")).size;
     console.log(`Wrote ${records.length} records (${(bytes / 1e6).toFixed(2)} MB) to public/data/pricing.json`);
-    console.log(`Providers: ${meta.providers.length}, Regions: ${meta.regions.length}, Deployments: ${meta.deployments.length}`);
+    console.log(`Providers: ${meta.providers.length}, Regions: ${meta.regions.length}, Deployments: ${meta.deployments.length}, Categories: ${meta.categories.join("/")}`);
   });
 }
 

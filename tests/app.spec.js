@@ -14,12 +14,26 @@ test("loads data and shows staleness + result count", async ({ page }) => {
 
 test("comparison table renders models, deployment columns and token prices", async ({ page }) => {
   await waitForData(page);
-  const table = page.getByTestId("pricing-table");
+  const table = page.getByTestId("table-Tokens");
   await expect(table).toBeVisible();
   await expect(table.locator("thead")).toContainText("Global");
   await expect(table.locator("tbody")).toContainText("$");
   const rowCount = await table.locator("tbody tr").count();
   expect(rowCount).toBeGreaterThan(20);
+});
+
+test("PTU (per-PTU) billing appears as its own section with hourly pricing", async ({ page }) => {
+  await waitForData(page);
+  const ptu = page.getByTestId("section-PTU");
+  await expect(ptu).toBeVisible();
+  await expect(ptu).toContainText("PTU/hr");
+  await expect(ptu.getByTestId("table-PTU").locator("tbody")).toContainText("$");
+});
+
+test("non-token billing categories are present (Images, Pages)", async ({ page }) => {
+  await waitForData(page);
+  await expect(page.getByTestId("section-Images")).toBeVisible();
+  await expect(page.getByTestId("section-Pages")).toBeVisible();
 });
 
 test("provider filter narrows results and updates the URL", async ({ page }) => {
@@ -82,6 +96,25 @@ test("calculator respects filters (provider scope)", async ({ page }) => {
   const providers = await table.locator("tbody tr td:nth-child(2)").allTextContents();
   expect(providers.length).toBeGreaterThan(0);
   for (const p of providers) expect(p).toBe("Cohere");
+});
+
+test("calculator switches to unit mode for PTU (per-PTU) billing", async ({ page }) => {
+  await waitForData(page);
+  // category is the 5th select (provider, model, region, deployment, category)
+  await page.getByTestId("filters").locator("select").nth(4).selectOption({ label: "PTU" });
+  await page.getByTestId("tab-calculator").click();
+  await expect(page.getByTestId("calc-qty")).toBeVisible();
+  await expect(page.getByTestId("calc-hours")).toBeVisible();
+  // token-specific inputs should be gone
+  await expect(page.getByTestId("calc-input")).toHaveCount(0);
+  const firstCost = page.getByTestId("calc-cost").first();
+  await expect(firstCost).toContainText("$");
+  await expect(page.getByTestId("calc-table")).toContainText("PTU");
+
+  // Cost scales with units: doubling quantity must change the cheapest cost.
+  const initial = await firstCost.textContent();
+  await page.getByTestId("calc-qty").fill("5");
+  await expect.poll(async () => await firstCost.textContent()).not.toBe(initial);
 });
 
 test("reset clears filters and URL", async ({ page }) => {

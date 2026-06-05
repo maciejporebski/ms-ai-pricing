@@ -12,13 +12,20 @@ normalizes the messy meter names into comparable rows, and lets you slice the da
 
 - **Filters** — provider, model, region, deployment type, category, free-text search,
   and a toggle to hide low-confidence (heuristically-ambiguous) rows.
-- **Comparison table** — models as rows, deployment types (Global / Data Zone /
-  Regional / Batch / Provisioned / Fine-tuning) as columns. Each cell shows
-  Input / Output / Cached-input price **per 1M tokens**. `*` marks prices that vary
-  by region (hover for the range); pick a region to pin a single price.
-- **Cost calculator** — enter expected monthly input / output / cached token volumes
-  (in millions) and get every matching model+deployment ranked cheapest-first, with
-  per-component prices and partial-cost warnings when a meter is missing.
+- **Comparison table** — every billing model is shown, grouped into sections:
+  - **Tokens** — models as rows × deployment types (Global / Data Zone / Regional /
+    Batch / Provisioned / Fine-tuning) as columns; each cell shows Input / Output /
+    Cached-input price **per 1M tokens**.
+  - **PTU** — Provisioned Throughput Units billed per PTU: hourly pay-as-you-go
+    (`PTU/hr`), monthly (`PTU/mo`), and 1-month / 1-year reservation commitments.
+  - **Images, Pages, Characters, Search, Session, Hosting, Other** — each rendered with
+    its native unit (per megapixel, per 1K pages, per character, per GB-day, per session,
+    per unit-hour, per second, …).
+  `*` marks prices that vary by region (hover for the range); pick a region to pin one.
+- **Cost calculator** — adapts to the selected category:
+  - Token mode: enter monthly input / output / cached token volumes (in millions).
+  - Unit/PTU mode: enter units per month (and hours/month for hourly meters like PTU/hr).
+  Every matching model+deployment is ranked cheapest-first with partial-cost warnings.
 - **Model detail drawer** — click any model to audit the raw Azure meters behind the
   normalized numbers (meter name, SKU, unit, region, effective date) and export them.
 - **CSV export** — export the filtered dataset or a single model's raw meters.
@@ -36,10 +43,13 @@ npm run fetch-data   # pages the API, normalizes, writes public/data/{pricing,me
 ```
 
 `scripts/normalize.mjs` contains the heuristic parser that derives provider, deployment
-type, token direction (input/output/cached), category, and a `pricePer1M` normalized
-token price from the free-text `productName` / `skuName` / `meterName` fields. Raw meter
-names are always retained so every number is auditable in the UI. Prices are only
-normalized to "per 1M tokens" for confidently token-based units (`1M`, `1K`).
+type, token direction (input/output/cached), **billing category** (Tokens, PTU, Images,
+Pages, Characters, Search, Session, Hosting, Other), a friendly billing **measure**
+(e.g. `PTU/hr`, `megapixel`, `1K pages`), the reservation **term**, and a `pricePer1M`
+normalized token price. Both Consumption (per-use) and Reservation (PTU 1-month / 1-year
+commitment) rows are kept. Raw meter names are always retained for audit. Prices are
+only normalized to "per 1M tokens" for confidently token-based units (`1M`, `1K`); every
+other billing model keeps its native unit price.
 
 > Retail USD estimates only — they exclude discounts, reservations, EAs, taxes, and
 > account-specific pricing. Verify in the Azure portal before purchase.
