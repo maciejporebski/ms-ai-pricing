@@ -1,5 +1,6 @@
 // Client-side data layer: load the snapshot, build filter option lists, and
 // group rows for the comparison table and calculator.
+import { regionName, UNIVERSAL_REGIONS } from "./regions.js";
 
 export async function loadData() {
   const base = import.meta.env.BASE_URL;
@@ -18,7 +19,7 @@ export const TOKEN_DIRECTIONS = ["Input", "Output", "Cached Input"];
 export function buildRegionLabels(records) {
   const map = new Map();
   for (const r of records) {
-    if (r.region && !map.has(r.region)) map.set(r.region, r.location || r.region);
+    if (r.region && !map.has(r.region)) map.set(r.region, regionName(r.region));
   }
   return map;
 }
@@ -33,7 +34,9 @@ export function applyFilters(records, f) {
   const q = (f.search || "").trim().toLowerCase();
   return records.filter((r) => {
     if (f.provider && r.provider !== f.provider) return false;
-    if (f.region && r.region !== f.region) return false;
+    // A geographic region also includes "Global" (and empty) pricing, which is
+    // universal — Global meters apply in every region.
+    if (f.region && r.region !== f.region && !UNIVERSAL_REGIONS.has(r.region)) return false;
     if (f.deployment && r.deployment !== f.deployment) return false;
     if (f.category && r.category !== f.category) return false;
     if (f.model && r.model !== f.model) return false;

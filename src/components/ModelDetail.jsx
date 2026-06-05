@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import { fmtUSD } from "../lib/data.js";
+import { regionName } from "../lib/regions.js";
 import { toCsv, download } from "../lib/csv.js";
 
 export default function ModelDetail({ allRecords, selected, onClose }) {
@@ -54,7 +55,7 @@ export default function ModelDetail({ allRecords, selected, onClose }) {
                 <tr key={i} className={r.lowConfidence ? "partial" : ""}>
                   <td>{r.deployment}</td>
                   <td>{r.direction}</td>
-                  <td title={r.location}>{r.region || "—"}</td>
+                  <td title={r.location}>{r.region ? regionName(r.region) : "—"}</td>
                   <td>{fmtUSD(r.price)}</td>
                   <td>{r.unit}</td>
                   <td>{r.pricePer1M != null ? fmtUSD(r.pricePer1M) : "—"}</td>

@@ -10,26 +10,25 @@ normalizes the messy meter names into comparable rows, and lets you slice the da
 
 ## Features
 
-- **Filters** — provider, model, region, deployment type, category, free-text search,
-  and a toggle to hide low-confidence (heuristically-ambiguous) rows.
+- **Region-first** — pricing varies by Azure region, so you must pick a **Region** before
+  any prices show. Selecting a region pins each price (no cross-region averaging) and
+  automatically includes universal **Global** pricing for that region. Regions use full
+  Azure names (e.g. *Sweden Central*, not the API's terse *SE Central*).
+- **Filters** — region (required), provider, model, deployment type, category, free-text
+  search, and a toggle to hide low-confidence (heuristically-ambiguous) rows.
 - **Comparison table** — every billing model is shown, grouped into sections:
-  - **Tokens** — models as rows × deployment types (Global / Data Zone / Regional /
-    Batch / Provisioned / Fine-tuning) as columns; each cell shows Input / Output /
-    Cached-input price **per 1M tokens**.
-  - **PTU** — Provisioned Throughput Units billed per PTU: hourly pay-as-you-go
-    (`PTU/hr`), monthly (`PTU/mo`), and 1-month / 1-year reservation commitments.
+  - **Tokens** — models as rows × deployment types as columns; each cell shows Input /
+    Output / Cached-input price **per 1M tokens**. Each row also includes **Provisioned**
+    columns showing the provider's per-PTU rates (PTU is billed per provider, not per
+    model), so provisioned cost sits right next to per-token cost.
   - **Images, Pages, Characters, Search, Session, Hosting, Other** — each rendered with
     its native unit (per megapixel, per 1K pages, per character, per GB-day, per session,
     per unit-hour, per second, …).
-  `*` marks prices that vary by region (hover for the range); pick a region to pin one.
-- **Cost calculator** — adapts to the selected category:
-  - Token mode: enter monthly input / output / cached token volumes (in millions).
-  - Unit/PTU mode: enter units per month (and hours/month for hourly meters like PTU/hr).
-  Every matching model+deployment is ranked cheapest-first with partial-cost warnings.
+  - Selecting **Category = PTU** shows a dedicated per-PTU table.
 - **Model detail drawer** — click any model to audit the raw Azure meters behind the
   normalized numbers (meter name, SKU, unit, region, effective date) and export them.
 - **CSV export** — export the filtered dataset or a single model's raw meters.
-- **Shareable URLs** — filter and tab state is encoded in the query string.
+- **Shareable URLs** — filter state is encoded in the query string.
 - **Freshness banner** — shows the snapshot timestamp and warns if it is over 72h old.
 
 ## How the data works (and why)
@@ -66,7 +65,7 @@ npm run dev            # http://localhost:5173
 
 ```bash
 npm run test:unit      # node --test — parser/normalizer fixtures
-npm run test:e2e       # Playwright — filters, table, calculator, drawer, deep links
+npm run test:e2e       # Playwright — region gate, table, provisioned columns, drawer, deep links
 ```
 
 ## Deploying to GitHub Pages

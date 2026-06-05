@@ -6,11 +6,10 @@ import { readQuery, writeQuery } from "./lib/url.js";
 import { toCsv, download } from "./lib/csv.js";
 import Filters from "./components/Filters.jsx";
 import PricingTable from "./components/PricingTable.jsx";
-import Calculator from "./components/Calculator.jsx";
 import ModelDetail from "./components/ModelDetail.jsx";
 import NoResults from "./components/NoResults.jsx";
 
-const FILTER_KEYS = ["provider", "model", "region", "deployment", "category", "search", "hideLowConfidence", "tab"];
+const FILTER_KEYS = ["provider", "model", "region", "deployment", "category", "search", "hideLowConfidence"];
 const EMPTY = {
   provider: "", model: "", region: "", deployment: "", category: "",
   search: "", hideLowConfidence: false,
@@ -31,9 +30,7 @@ function StalenessBanner({ meta }) {
 
 export default function App() {
   const [state, setState] = useState({ records: null, meta: null, error: null });
-  const q = readQuery(FILTER_KEYS);
-  const [tab, setTab] = useState(q.tab === "calculator" ? "calculator" : "table");
-  const [filters, setFilters] = useState({ ...EMPTY, ...stripTab(q) });
+  const [filters, setFilters] = useState({ ...EMPTY, ...readQuery(FILTER_KEYS) });
   const [selected, setSelected] = useState(null);
 
   useEffect(() => {
@@ -43,8 +40,8 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    writeQuery({ ...filters, tab });
-  }, [filters, tab]);
+    writeQuery(filters);
+  }, [filters]);
 
   const setFilter = (patch) => setFilters((f) => ({ ...f, ...patch }));
 
@@ -105,17 +102,22 @@ export default function App() {
         resultCount={filtered.length}
       />
 
-      <nav className="tabs" data-testid="tabs">
-        <button className={tab === "table" ? "active" : ""} onClick={() => setTab("table")} data-testid="tab-table">
-          Comparison table
+      <nav className="toolbar">
+        {filters.region && <span className="result-count" data-testid="result-count">{filtered.length} rows</span>}
+        <button type="button" className="export" onClick={exportFiltered} disabled={!filters.region}>
+          Export filtered CSV
         </button>
-        <button className={tab === "calculator" ? "active" : ""} onClick={() => setTab("calculator")} data-testid="tab-calculator">
-          Cost calculator
-        </button>
-        <button type="button" className="export" onClick={exportFiltered}>Export filtered CSV</button>
       </nav>
 
-      {filtered.length === 0 ? (
+      {!filters.region ? (
+        <div className="region-prompt" data-testid="region-prompt">
+          <h3>Select a region to view pricing</h3>
+          <p className="muted">
+            Prices vary by Azure region, so choose a <strong>Region</strong> above to see model
+            pricing. Global pricing is included automatically for the region you pick.
+          </p>
+        </div>
+      ) : filtered.length === 0 ? (
         <NoResults
           records={records}
           filters={filters}
@@ -123,10 +125,8 @@ export default function App() {
           setFilter={setFilter}
           clearAll={() => setFilter({ ...EMPTY })}
         />
-      ) : tab === "table" ? (
-        <PricingTable records={filtered} selectedCategory={filters.category} ptuRecords={ptuRecords} onSelectModel={setSelected} />
       ) : (
-        <Calculator records={filtered} category={filters.category} />
+        <PricingTable records={filtered} selectedCategory={filters.category} ptuRecords={ptuRecords} onSelectModel={setSelected} />
       )}
 
       <footer className="app-foot">
@@ -144,10 +144,4 @@ export default function App() {
       <ModelDetail allRecords={records} selected={selected} onClose={() => setSelected(null)} />
     </div>
   );
-}
-
-function stripTab(q) {
-  const { tab, ...rest } = q;
-  if (rest.hideLowConfidence != null) rest.hideLowConfidence = rest.hideLowConfidence === true || rest.hideLowConfidence === "true";
-  return rest;
 }

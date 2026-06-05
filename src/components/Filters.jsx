@@ -1,11 +1,12 @@
 import { uniqueSorted } from "../lib/data.js";
+import { UNIVERSAL_REGIONS, regionName } from "../lib/regions.js";
 
-function Select({ label, value, onChange, options, labels }) {
+function Select({ label, value, onChange, options, labels, placeholder = "All" }) {
   return (
     <label className="filter">
       <span>{label}</span>
       <select value={value} onChange={(e) => onChange(e.target.value)}>
-        <option value="">All</option>
+        <option value="">{placeholder}</option>
         {options.map((o) => (
           <option key={o} value={o}>
             {labels ? labels.get(o) || o : o}
@@ -19,7 +20,11 @@ function Select({ label, value, onChange, options, labels }) {
 export default function Filters({ records, filters, setFilter, regionLabels, resultCount }) {
   // Option lists derive from the full dataset so users can always change facets.
   const providers = uniqueSorted(records, "provider");
-  const regions = uniqueSorted(records, "region");
+  // Real geographic regions only (Global/US Gov/empty are universal, not selectable),
+  // sorted by friendly name.
+  const regions = uniqueSorted(records, "region")
+    .filter((r) => !UNIVERSAL_REGIONS.has(r))
+    .sort((a, b) => regionName(a).localeCompare(regionName(b)));
   const deployments = uniqueSorted(records, "deployment");
   const categories = uniqueSorted(records, "category");
   // Models narrow to the chosen provider for a manageable list.
@@ -30,12 +35,13 @@ export default function Filters({ records, filters, setFilter, regionLabels, res
 
   return (
     <div className="filters" data-testid="filters">
+      <Select label="Region *" value={filters.region} options={regions} labels={regionLabels}
+        placeholder="Select a region…"
+        onChange={(v) => setFilter({ region: v })} />
       <Select label="Provider" value={filters.provider} options={providers}
         onChange={(v) => setFilter({ provider: v, model: "" })} />
       <Select label="Model" value={filters.model} options={models}
         onChange={(v) => setFilter({ model: v })} />
-      <Select label="Region" value={filters.region} options={regions} labels={regionLabels}
-        onChange={(v) => setFilter({ region: v })} />
       <Select label="Deployment type" value={filters.deployment} options={deployments}
         onChange={(v) => setFilter({ deployment: v })} />
       <Select label="Category" value={filters.category} options={categories}
@@ -51,7 +57,6 @@ export default function Filters({ records, filters, setFilter, regionLabels, res
         <span>Hide low-confidence rows</span>
       </label>
       <div className="filter-actions">
-        <span className="result-count" data-testid="result-count">{resultCount} rows</span>
         <button type="button" onClick={() => setFilter({
           provider: "", model: "", region: "", deployment: "", category: "", search: "",
           hideLowConfidence: false,
