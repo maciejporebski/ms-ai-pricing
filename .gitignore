@@ -1,0 +1,17 @@
+node_modules
+dist
+.DS_Store
+*.log
+
+# Generated pricing snapshot — produced by `npm run fetch-data` and by CI on every
+# deploy, so it stays fresh and never bloats git history.
+public/data/
+
+# Local exploration scratch
+tmp_*.mjs
+tmp_*.json
+
+# Playwright
+test-results
+playwright-report
+/.playwright
