@@ -117,6 +117,23 @@ test("calculator switches to unit mode for PTU (per-PTU) billing", async ({ page
   await expect.poll(async () => await firstCost.textContent()).not.toBe(initial);
 });
 
+test("provisioned + specific model shows guided no-results with a working fix", async ({ page }) => {
+  await waitForData(page);
+  const selects = page.getByTestId("filters").locator("select");
+  await selects.first().selectOption({ label: "OpenAI" });
+  await selects.nth(1).selectOption({ label: "5.4 mini" });
+  await selects.nth(3).selectOption({ label: "Provisioned (Data Zone)" });
+
+  const nr = page.getByTestId("no-results");
+  await expect(nr).toBeVisible();
+  await expect(nr).toContainText("Provisioned / PTU");
+
+  // The offered "Clear Model" fix must actually resolve to results.
+  await nr.getByRole("button", { name: /Clear Model/ }).click();
+  await expect(page.getByTestId("no-results")).toHaveCount(0);
+  await expect(page.getByTestId("section-PTU")).toBeVisible();
+});
+
 test("reset clears filters and URL", async ({ page }) => {
   await waitForData(page);
   await page.getByTestId("filters").locator("select").first().selectOption({ label: "OpenAI" });

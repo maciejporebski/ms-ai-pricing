@@ -138,7 +138,9 @@ export function normalize(row) {
   const dep = deployment(row.skuName);
   const dir = direction(row.skuName + " " + row.meterName);
   const cat = category(row.unitOfMeasure, row.meterName, dep);
-  const model = modelName(row.productName, row.skuName);
+  // PTU (provisioned throughput) is billed per PTU and is NOT model-specific — the
+  // API exposes one generic meter per provider/region. Label it so accordingly.
+  const model = cat === "PTU" ? "All models" : modelName(row.productName, row.skuName);
   const tokenUnit = row.unitOfMeasure === "1M" || row.unitOfMeasure === "1K";
   const isHourly = /hour/i.test(row.unitOfMeasure);
   return {

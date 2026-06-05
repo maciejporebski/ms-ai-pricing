@@ -129,6 +129,24 @@ table.pt.small { font-size: 12px; }
 .calc-inputs { display: flex; gap: 14px; flex-wrap: wrap; margin-bottom: 12px; }
 .empty-note { padding: 16px; color: var(--muted); }
 
+.no-results {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 20px;
+  margin-top: 8px;
+}
+.no-results h3 { margin: 0 0 10px; }
+.nr-note {
+  background: rgba(240, 162, 59, 0.1);
+  border: 1px solid var(--warn);
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+.nr-actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0; }
+.nr-actions button { background: var(--panel2); }
+.nr-reset { margin-top: 6px; }
+
 .app-foot { margin-top: 18px; }
 
 /* Drawer */

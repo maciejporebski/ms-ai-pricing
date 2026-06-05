@@ -8,6 +8,7 @@ import Filters from "./components/Filters.jsx";
 import PricingTable from "./components/PricingTable.jsx";
 import Calculator from "./components/Calculator.jsx";
 import ModelDetail from "./components/ModelDetail.jsx";
+import NoResults from "./components/NoResults.jsx";
 
 const FILTER_KEYS = ["provider", "model", "region", "deployment", "category", "search", "hideLowConfidence", "tab"];
 const EMPTY = {
@@ -106,7 +107,15 @@ export default function App() {
         <button type="button" className="export" onClick={exportFiltered}>Export filtered CSV</button>
       </nav>
 
-      {tab === "table" ? (
+      {filtered.length === 0 ? (
+        <NoResults
+          records={records}
+          filters={filters}
+          regionLabels={regionLabels}
+          setFilter={setFilter}
+          clearAll={() => setFilter({ ...EMPTY })}
+        />
+      ) : tab === "table" ? (
         <PricingTable records={filtered} selectedCategory={filters.category} onSelectModel={setSelected} />
       ) : (
         <Calculator records={filtered} category={filters.category} />
