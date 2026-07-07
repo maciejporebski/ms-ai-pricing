@@ -37,7 +37,6 @@ export function applyFilters(records, f) {
     // A geographic region also includes "Global" (and empty) pricing, which is
     // universal — Global meters apply in every region.
     if (f.region && r.region !== f.region && !UNIVERSAL_REGIONS.has(r.region)) return false;
-    if (f.deployment && r.deployment !== f.deployment) return false;
     if (f.category && r.category !== f.category) return false;
     if (f.model && r.model !== f.model) return false;
     if (f.hideLowConfidence && r.lowConfidence) return false;

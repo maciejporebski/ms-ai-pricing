@@ -9,9 +9,9 @@ import PricingTable from "./components/PricingTable.jsx";
 import ModelDetail from "./components/ModelDetail.jsx";
 import NoResults from "./components/NoResults.jsx";
 
-const FILTER_KEYS = ["provider", "model", "region", "deployment", "category", "search", "hideLowConfidence"];
+const FILTER_KEYS = ["provider", "model", "region", "category", "search", "hideLowConfidence"];
 const EMPTY = {
-  provider: "", model: "", region: "", deployment: "", category: "",
+  provider: "", model: "", region: "", category: "",
   search: "", hideLowConfidence: false,
 };
 
@@ -22,7 +22,7 @@ function StalenessBanner({ meta }) {
   const stale = ageH > 72;
   return (
     <div className={`staleness ${stale ? "stale" : ""}`} data-testid="staleness">
-      Data snapshot: {gen.toLocaleString()} ({fmtNum(meta.recordCount)} meters)
+      Data snapshot: {gen.toLocaleString()}
       {stale && <strong> — over 72h old, may be outdated</strong>}
     </div>
   );
@@ -52,8 +52,8 @@ export default function App() {
     [records, filters]
   );
   // PTU rows used to graft Provisioned columns onto each model row. Scoped only by
-  // provider/region (PTU is provider-wide), so the model/deployment/category filters
-  // don't hide it.
+  // provider/region (PTU is provider-wide), so the model/category filters don't
+  // hide it.
   const ptuRecords = useMemo(() => {
     if (!records) return [];
     return applyFilters(records, { provider: filters.provider, region: filters.region })
@@ -89,7 +89,7 @@ export default function App() {
       <header className="app-head">
         <h1>Azure AI Foundry Model Pricing Explorer</h1>
         <p className="subtitle">
-          Live retail prices from the Azure Retail Prices API, normalized for easy comparison.
+          Retail prices from the Azure Retail Prices API refreshed daily. Pricing information does not guarantee model availability, some models have pricing information available ahead of model availability.
         </p>
         <StalenessBanner meta={state.meta} />
       </header>
@@ -132,9 +132,7 @@ export default function App() {
       <footer className="app-foot">
         <p className="muted small">
           Retail USD estimates only. Prices exclude discounts, reservations, enterprise
-          agreements, taxes, and account-specific pricing — verify in the Azure portal before
-          purchase. Model/deployment/direction are inferred heuristically from meter names;
-          rows marked ⚠️ are low-confidence. Source:{" "}
+          agreements, taxes, and account-specific pricing. Source:{" "}
           <a href="https://prices.azure.com/api/retail/prices" target="_blank" rel="noreferrer">
             Azure Retail Prices API
           </a>.

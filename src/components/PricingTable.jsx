@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { buildCategoryMatrix, categoriesPresent, fmtUSD, CATEGORY_HINTS } from "../lib/data.js";
 
 const DIR_ABBR = { Input: "In", Output: "Out", "Cached Input": "Cached" };
@@ -25,11 +25,63 @@ function Cell({ items }) {
   );
 }
 
+// Sortable-by-price representative value for a deployment cell: the first
+// (lowest-ranked, e.g. Input) series price — enough to give a stable, useful
+// ordering without needing the user to pick which series to sort by.
+function cellSortValue(row, dep) {
+  const items = row.cells[dep];
+  return items && items.length ? items[0]?.p?.price ?? null : null;
+}
+
+function compareRows(a, b, sort) {
+  const { key, dir } = sort;
+  let va, vb, isString = false;
+  if (key === "provider") { va = a.provider; vb = b.provider; isString = true; }
+  else if (key === "model") { va = a.model; vb = b.model; isString = true; }
+  else { va = cellSortValue(a, key); vb = cellSortValue(b, key); }
+
+  // Rows without a value for the sorted column always sink to the bottom,
+  // regardless of sort direction.
+  if (va == null && vb == null) return 0;
+  if (va == null) return 1;
+  if (vb == null) return -1;
+
+  const cmp = isString ? va.localeCompare(vb) : va - vb;
+  return dir === "asc" ? cmp : -cmp;
+}
+
+function SortableHeader({ label, sortKey, sort, onSort, className = "" }) {
+  const active = sort.key === sortKey;
+  const ariaSort = active ? (sort.dir === "asc" ? "ascending" : "descending") : "none";
+  return (
+    <th
+      className={`${className} sortable${active ? " sorted" : ""}`.trim()}
+      aria-sort={ariaSort}
+      onClick={() => onSort(sortKey)}
+    >
+      {label}
+      <span className="pt-sort-arrow">{active ? (sort.dir === "asc" ? "▲" : "▼") : ""}</span>
+    </th>
+  );
+}
+
 function CategorySection({ records, category, ptuRecords, onSelectModel }) {
   const { rows, deployments, augmented } = useMemo(
     () => buildCategoryMatrix(records, category, ptuRecords),
     [records, category, ptuRecords]
   );
+  const [sort, setSort] = useState({ key: "provider", dir: "asc" });
+  const sortedRows = useMemo(() => {
+    const copy = [...rows];
+    copy.sort((a, b) =>
+      compareRows(a, b, sort) || a.provider.localeCompare(b.provider) || a.model.localeCompare(b.model)
+    );
+    return copy;
+  }, [rows, sort]);
+  const toggleSort = (key) => {
+    setSort((s) => (s.key === key ? { key, dir: s.dir === "asc" ? "desc" : "asc" } : { key, dir: "asc" }));
+  };
+
   if (rows.length === 0) return null;
 
   return (
@@ -42,24 +94,24 @@ function CategorySection({ records, category, ptuRecords, onSelectModel }) {
         {augmented && (
           <span>
             <strong className="pt-ptu">Provisioned</strong> columns are per-PTU rates for the model's
-            provider (PTU is not billed per model).{" "}
+            provider.
           </span>
         )}
-        <strong>*</strong> = varies across regions (hover for range). Click a model for raw meters.
       </p>
       <div className="table-wrap">
         <table className="pt" data-testid={`table-${category}`}>
           <thead>
             <tr>
-              <th className="pt-sticky">Provider</th>
-              <th className="pt-sticky2">Model</th>
+              <SortableHeader label="Provider" sortKey="provider" sort={sort} onSort={toggleSort} className="pt-sticky" />
+              <SortableHeader label="Model" sortKey="model" sort={sort} onSort={toggleSort} className="pt-sticky2" />
               {deployments.map((d) => (
-                <th key={d} className={/Provisioned/.test(d) ? "pt-ptu-col" : ""}>{d}</th>
+                <SortableHeader key={d} label={d} sortKey={d} sort={sort} onSort={toggleSort}
+                  className={/Provisioned/.test(d) ? "pt-ptu-col" : ""} />
               ))}
             </tr>
           </thead>
           <tbody>
-            {rows.map((row) => (
+            {sortedRows.map((row) => (
               <tr key={`${row.provider}|${row.model}`}>
                 <td className="pt-sticky pt-prov">{row.provider}</td>
                 <td className="pt-sticky2 pt-model">

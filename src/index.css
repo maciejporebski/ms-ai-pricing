@@ -68,6 +68,49 @@ a { color: var(--accent); }
   min-width: 150px;
 }
 .filter-search input { min-width: 200px; }
+
+/* Combobox (searchable dropdown) */
+.combobox { position: relative; }
+.combobox-wrap { position: relative; }
+.combobox-wrap input {
+  background: var(--panel2);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 7px 8px;
+  font-size: 13px;
+  min-width: 180px;
+  width: 100%;
+}
+.combobox-wrap input:focus { outline: none; border-color: var(--accent2); }
+.combobox-list {
+  position: absolute;
+  top: calc(100% + 2px);
+  left: 0;
+  right: 0;
+  z-index: 20;
+  margin: 0;
+  padding: 4px;
+  list-style: none;
+  max-height: 260px;
+  overflow-y: auto;
+  background: var(--panel2);
+  border: 1px solid var(--accent2);
+  border-radius: 6px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+}
+.combobox-option {
+  padding: 6px 8px;
+  border-radius: 4px;
+  font-size: 13px;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.combobox-option.active, .combobox-option:hover { background: var(--accent2); color: #fff; }
+.combobox-option.selected { font-weight: 600; }
+.combobox-empty { padding: 6px 8px; font-size: 13px; color: var(--muted); }
 .filter-check { flex-direction: row; align-items: center; gap: 6px; }
 .filter-actions { margin-left: auto; display: flex; align-items: center; gap: 10px; }
 .result-count { font-size: 12px; color: var(--muted); }
@@ -119,6 +162,10 @@ table.pt.small { font-size: 12px; }
   background: var(--panel2);
   border-bottom: 2px solid var(--border);
 }
+.pt th.sortable { cursor: pointer; user-select: none; }
+.pt th.sortable:hover { background: #262b37; }
+.pt th.sorted { color: var(--accent); }
+.pt-sort-arrow { display: inline-block; margin-left: 5px; font-size: 10px; }
 .pt tbody tr:hover { background: #20242e; }
 .pt-sticky { position: sticky; left: 0; z-index: 1; background: var(--panel); width: 120px; min-width: 120px; max-width: 120px; }
 .pt-sticky2 { position: sticky; left: 120px; z-index: 1; background: var(--panel); width: 160px; min-width: 160px; max-width: 160px; }

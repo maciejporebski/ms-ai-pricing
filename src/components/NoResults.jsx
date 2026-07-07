@@ -4,7 +4,6 @@ const FILTER_FIELDS = [
   ["provider", "Provider"],
   ["model", "Model"],
   ["region", "Region"],
-  ["deployment", "Deployment type"],
   ["category", "Category"],
 ];
 
@@ -22,8 +21,7 @@ export default function NoResults({ records, filters, regionLabels, setFilter, c
     }
   }
 
-  const provisionedConflict =
-    filters.model && /provisioned|ptu/i.test(filters.deployment || "");
+  const provisionedConflict = filters.model && filters.category === "PTU";
 
   return (
     <div className="no-results" data-testid="no-results">
