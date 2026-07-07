@@ -39,8 +39,7 @@ jobs:
 
       - name: Build site
         env:
-          # GitHub Pages project sites are served from /<repo>/.
-          BASE_PATH: /${{ github.event.repository.name }}/
+          BASE_PATH: /
         run: npm run build
 
       - uses: actions/upload-pages-artifact@v3
