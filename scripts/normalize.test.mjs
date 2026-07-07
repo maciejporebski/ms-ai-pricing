@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { normalize, _internals } from "./normalize.mjs";
 
-const { deployment, direction, scopeOf, category } = _internals;
+const { deployment, direction, scopeOf, category, modelName } = _internals;
 
 function row(o) {
   return {
@@ -42,6 +42,25 @@ test("direction detection incl cached", () => {
   assert.equal(direction("5.4 nano Batch cd Inp Gl"), "Cached Input");
   assert.equal(direction("gpt rt aud 0828 cchd Inp glbl"), "Cached Input");
   assert.equal(direction("text embedding 3 large DZ"), "Flat");
+});
+
+test("glued camelCase tokens are detected (BatchOutp, AudInp, TxtOutp)", () => {
+  assert.equal(direction("gpt 4o mini0718 BatchOutp DataZone"), "Output");
+  assert.equal(direction("gpt4o realtimePrvwAudInp DataZone"), "Input");
+  assert.equal(direction("gpt4o realtimePrvwTxtOutp DataZone"), "Output");
+  // deployment must still see the glued "Batch"
+  assert.equal(deployment("gpt 4o mini0718 BatchOutp DataZone"), "Data Zone Batch");
+});
+
+test("over-stripped names get the model family prefixed", () => {
+  assert.equal(modelName("Azure OpenAI GPT5", "5 pp inp Dz"), "GPT 5");
+  assert.equal(modelName("Azure OpenAI PP FT GPT4s", "41 ft opt Dz"), "GPT 41");
+  assert.equal(modelName("Azure OpenAI GPT5", "5.4 opt Dz"), "GPT 5.4");
+  assert.equal(modelName("Azure Grok Models", "4.3 Inp DZ"), "Grok 4.3");
+  // names that already carry letters are left as-is
+  assert.equal(modelName("Azure Deepseek Models", "V3 Inp Gl"), "V3");
+  assert.equal(modelName("Azure OpenAI", "o1 opt Dz"), "o1");
+  assert.equal(modelName("Azure Deepseek Models", "R1 Inp glbl"), "R1");
 });
 
 test("scopeOf one-word datazone and regn", () => {

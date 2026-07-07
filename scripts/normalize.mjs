@@ -24,6 +24,14 @@ function provider(productName) {
   return productName;
 }
 
+// Azure SKU names sometimes glue tokens together in camelCase
+// (e.g. "BatchOutp", "realtimePrvwAudInp"), which defeats the \b-anchored
+// keyword checks below. Split on lower→upper boundaries first so "Batch Outp",
+// "Aud Inp" etc. tokenize correctly.
+function splitCamel(s) {
+  return s.replace(/([a-z])([A-Z])/g, "$1 $2");
+}
+
 function scopeOf(s) {
   if (/\bdata zone\b|\bdatazone\b|\bdzone\b|\bdzn\b|\bdz\b/.test(s)) return "Data Zone";
   if (/\bglobal\b|\bglbl\b|\bgl\b/.test(s)) return "Global";
@@ -32,7 +40,7 @@ function scopeOf(s) {
 }
 
 function deployment(sku) {
-  const s = " " + sku.toLowerCase() + " ";
+  const s = " " + splitCamel(sku).toLowerCase() + " ";
   const isBatch = /\bbatch\b/.test(s);
   const isProv = /provisioned|\bptu\b/.test(s);
   const isFt = /\bft\b|finetuned|fine-tuned|\brft\b/.test(s) && !/\bpp\b/.test(s);
@@ -46,7 +54,7 @@ function deployment(sku) {
 }
 
 function direction(s0) {
-  const s = " " + s0.toLowerCase() + " ";
+  const s = " " + splitCamel(s0).toLowerCase() + " ";
   const cached = /\bcd\b|\bcchd\b|cache|cached/.test(s);
   const input = /\binp\b|\binput\b|\binpt\b|-in-|\bin-ft\b|text input|\bin\b/.test(s);
   const output = /\boutp\b|\boutput\b|\bout\b|\boutpt\b|\bopt\b|-out-|\bout-ft\b/.test(s);
@@ -70,12 +78,29 @@ const STRIP = [
   /-in-/gi, /-out-/gi, /\bmdl\b/gi, /\bgrdr\b/gi, /\bgrader\b/gi,
 ];
 
+// Recognizable model family from the productName, used to salvage over-stripped
+// SKU-derived names like "5" or "4.3". Drops Azure + packaging/company-only words
+// but keeps brand/family tokens; the last remaining token is the family
+// ("Azure OpenAI GPT5" -> "GPT", "Azure Grok Models" -> "Grok").
+const PRODUCT_STRIP = /\b(azure|models?|reservation|provisioned|throughput|managed|compute|agent|foundry|microsoft|openai|pp|ft)\b/gi;
+function familyFromProduct(productName) {
+  const toks = productName.replace(PRODUCT_STRIP, " ").match(/[A-Za-z]{2,}/g) || [];
+  const last = toks[toks.length - 1];
+  return last ? last.match(/^[A-Za-z]+/)[0] : "";
+}
+
 function modelName(productName, sku) {
-  let m = sku;
+  let m = splitCamel(sku);
   m = m.replace(/^FW\s+/i, "").replace(/^Mngd\s+/i, "");
   for (const re of STRIP) m = m.replace(re, " ");
   m = m.replace(/[-_]+/g, " ").replace(/\s+/g, " ").trim();
-  if (!m) m = productName.replace(/^Azure\s+/i, "").replace(/\s+Models$/i, "");
+  if (!m) {
+    m = productName.replace(/^Azure\s+/i, "").replace(/\s+Models$/i, "");
+  } else if (/^[\d.]+$/.test(m)) {
+    // Bare number remnant (e.g. "5", "4.3"): prepend the family -> "GPT 5", "Grok 4.3".
+    const fam = familyFromProduct(productName);
+    if (fam && !new RegExp(`^${fam}\\b`, "i").test(m)) m = `${fam} ${m}`;
+  }
   return m;
 }
 

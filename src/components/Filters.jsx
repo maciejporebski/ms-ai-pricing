@@ -12,6 +12,7 @@ function Combobox({ label, value, onChange, options, labels, placeholder = "All"
   const [query, setQuery] = useState("");
   const [activeIndex, setActiveIndex] = useState(-1);
   const rootRef = useRef(null);
+  const listRef = useRef(null);
   const idRef = useRef(`cb-${++comboUid}`);
 
   const optionLabel = (o) => (labels ? labels.get(o) || o : o);
@@ -36,6 +37,12 @@ function Combobox({ label, value, onChange, options, labels, placeholder = "All"
     return () => document.removeEventListener("mousedown", onDocMouseDown);
   }, [open]);
 
+  useEffect(() => {
+    if (!open || activeIndex < 0 || !listRef.current) return;
+    const el = listRef.current.querySelector(`[data-index="${activeIndex}"]`);
+    if (el) el.scrollIntoView({ block: "nearest" });
+  }, [activeIndex, open]);
+
   const openList = () => {
     setOpen(true);
     setQuery("");
@@ -56,6 +63,7 @@ function Combobox({ label, value, onChange, options, labels, placeholder = "All"
       setActiveIndex((i) => Math.min(i + 1, filtered.length - 1));
     } else if (e.key === "ArrowUp") {
       e.preventDefault();
+      if (!open) { openList(); return; }
       setActiveIndex((i) => Math.max(i - 1, 0));
     } else if (e.key === "Enter") {
       e.preventDefault();
@@ -86,7 +94,7 @@ function Combobox({ label, value, onChange, options, labels, placeholder = "All"
           onKeyDown={onKeyDown}
         />
         {open && (
-          <ul className="combobox-list" id={`${idRef.current}-listbox`} role="listbox">
+          <ul className="combobox-list" id={`${idRef.current}-listbox`} role="listbox" ref={listRef}>
             <li
               role="option"
               aria-selected={value === ""}
@@ -100,6 +108,7 @@ function Combobox({ label, value, onChange, options, labels, placeholder = "All"
               <li
                 key={o}
                 role="option"
+                data-index={i}
                 aria-selected={value === o}
                 className={`combobox-option${value === o ? " selected" : ""}${i === activeIndex ? " active" : ""}`}
                 onMouseDown={(e) => { e.preventDefault(); pick(o); }}

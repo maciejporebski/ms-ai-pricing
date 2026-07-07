@@ -1,6 +1,9 @@
 export function toCsv(rows, fields) {
   const esc = (v) => {
-    const s = v == null ? "" : String(v);
+    let s = v == null ? "" : String(v);
+    // Neutralize spreadsheet formula injection: a leading =, +, -, @, or control
+    // char makes Excel/Sheets evaluate the cell. Prefix with a single quote.
+    if (/^[=+\-@\t\r]/.test(s)) s = "'" + s;
     return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
   };
   const head = fields.join(",");
