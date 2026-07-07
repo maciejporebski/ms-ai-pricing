@@ -184,3 +184,45 @@ test("deep link via URL applies region + provider on load", async ({ page }) => 
   await expect(page.getByTestId("region-prompt")).toHaveCount(0);
   await expect(page.getByTestId("table-Tokens").locator("tbody td.pt-prov").first()).toHaveText("OpenAI");
 });
+
+async function pickInRow(row, page, label, optionText) {
+  await row.getByRole("combobox", { name: label, exact: true }).click();
+  await page.getByRole("option", { name: optionText, exact: true }).click();
+}
+
+test("defaults to the Retail Prices tab", async ({ page }) => {
+  await waitForData(page);
+  await expect(page.getByTestId("tab-retail")).toHaveAttribute("aria-selected", "true");
+  await expect(page.getByTestId("tab-calc")).toHaveAttribute("aria-selected", "false");
+  await expect(page.getByTestId("region-prompt")).toBeVisible();
+  await expect(page.getByTestId("calculator")).toHaveCount(0);
+});
+
+test("calculator computes token cost and adds rows to compare", async ({ page }) => {
+  await waitForData(page);
+  await page.getByTestId("tab-calc").click();
+  const calc = page.getByTestId("calculator");
+  await expect(calc).toBeVisible();
+
+  const row = calc.getByTestId("calc-row").first();
+  await pickInRow(row, page, "Location", REGION);
+  await pickInRow(row, page, "Model", "OpenAI — GPT 5");
+  await pickInRow(row, page, "Hosting type", "Global");
+  await row.getByRole("spinbutton", { name: "Input (M tokens)" }).fill("1");
+  await expect(row.getByTestId("calc-total")).toContainText("$1.25");
+
+  await page.getByTestId("calc-add-row").click();
+  await expect(calc.getByTestId("calc-row")).toHaveCount(2);
+});
+
+test("calculator computes PTU cost from provisioned hosting", async ({ page }) => {
+  await waitForData(page);
+  await page.getByTestId("tab-calc").click();
+  const row = page.getByTestId("calculator").getByTestId("calc-row").first();
+  await pickInRow(row, page, "Location", REGION);
+  await pickInRow(row, page, "Model", "OpenAI — GPT 5");
+  await pickInRow(row, page, "Hosting type", "Provisioned (Global) · PTU");
+  await row.getByRole("spinbutton", { name: "PTUs" }).fill("10");
+  await row.getByRole("spinbutton", { name: "Hours" }).fill("730");
+  await expect(row.getByTestId("calc-total")).toContainText("$7,300.00");
+});

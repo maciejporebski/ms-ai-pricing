@@ -134,6 +134,50 @@ button.link:hover { text-decoration: underline; }
 .toolbar .result-count { font-size: 12px; color: var(--muted); }
 .toolbar .export { margin-left: auto; }
 
+/* Tabs */
+.tabs { display: flex; gap: 4px; margin: 14px 0 0; border-bottom: 1px solid var(--border); }
+.tab {
+  background: none; border: 1px solid transparent; border-bottom: none;
+  border-radius: 8px 8px 0 0; padding: 9px 18px; color: var(--muted);
+  font-size: 14px; font-weight: 600; margin-bottom: -1px;
+}
+.tab:hover { color: var(--text); border-color: transparent; }
+.tab.active {
+  color: var(--text); background: var(--panel);
+  border-color: var(--border); border-bottom: 1px solid var(--panel);
+}
+
+/* Calculator */
+.calculator { margin-top: 14px; }
+.calc-rows { display: flex; flex-direction: column; gap: 12px; }
+.calc-row {
+  display: flex; flex-wrap: wrap; gap: 14px; align-items: flex-start;
+  background: var(--panel); border: 1px solid var(--border);
+  border-radius: 10px; padding: 14px;
+}
+.calc-selectors, .calc-inputs { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-start; }
+.calc-inputs { flex: 1; }
+.calc-num input { min-width: 110px; width: 120px; }
+.calc-num.disabled { opacity: 0.4; }
+.calc-rate { font-size: 11px; color: var(--muted); }
+.calc-cost { font-size: 12px; font-weight: 600; color: var(--accent); font-variant-numeric: tabular-nums; }
+.calc-cb-hosting .combobox-wrap input { min-width: 240px; }
+.calc-result { display: flex; align-items: center; gap: 12px; margin-left: auto; align-self: center; }
+.calc-total { display: flex; flex-direction: column; gap: 2px; text-align: right; }
+.calc-total strong { font-size: 18px; font-variant-numeric: tabular-nums; }
+.calc-remove {
+  background: none; border: 1px solid var(--border); border-radius: 6px;
+  width: 30px; height: 30px; padding: 0; color: var(--muted);
+}
+.calc-remove:hover:not(:disabled) { border-color: #a33; color: #ffd7d7; }
+.calc-remove:disabled { opacity: 0.35; cursor: not-allowed; }
+.calc-foot {
+  display: flex; align-items: center; gap: 16px; margin-top: 14px;
+  padding-top: 14px; border-top: 1px solid var(--border);
+}
+.calc-grand { margin-left: auto; display: flex; align-items: baseline; gap: 12px; }
+.calc-grand strong { font-size: 22px; font-variant-numeric: tabular-nums; }
+
 .region-prompt {
   background: var(--panel);
   border: 1px dashed var(--accent2);

@@ -6,6 +6,7 @@ import { readQuery, writeQuery } from "./lib/url.js";
 import { toCsv, download } from "./lib/csv.js";
 import Filters from "./components/Filters.jsx";
 import PricingTable from "./components/PricingTable.jsx";
+import Calculator from "./components/Calculator.jsx";
 import ModelDetail from "./components/ModelDetail.jsx";
 import NoResults from "./components/NoResults.jsx";
 
@@ -32,6 +33,7 @@ export default function App() {
   const [state, setState] = useState({ records: null, meta: null, error: null });
   const [filters, setFilters] = useState({ ...EMPTY, ...readQuery(FILTER_KEYS) });
   const [selected, setSelected] = useState(null);
+  const [tab, setTab] = useState("retail");
 
   useEffect(() => {
     loadData()
@@ -87,46 +89,65 @@ export default function App() {
   return (
     <div className="app">
       <header className="app-head">
-        <h1>Azure AI Foundry Model Pricing Explorer</h1>
+        <h1>AI Foundry Model Pricing</h1>
         <p className="subtitle">
           Retail prices from the Azure Retail Prices API refreshed daily. Pricing information does not guarantee model availability, some models have pricing information available ahead of model availability.
         </p>
         <StalenessBanner meta={state.meta} />
       </header>
 
-      <Filters
-        records={records}
-        filters={filters}
-        setFilter={setFilter}
-        regionLabels={regionLabels}
-        resultCount={filtered.length}
-      />
-
-      <nav className="toolbar">
-        {filters.region && <span className="result-count" data-testid="result-count">{filtered.length} rows</span>}
-        <button type="button" className="export" onClick={exportFiltered} disabled={!filters.region}>
-          Export filtered CSV
+      <nav className="tabs" role="tablist" data-testid="tabs">
+        <button type="button" role="tab" aria-selected={tab === "retail"}
+          className={`tab${tab === "retail" ? " active" : ""}`} data-testid="tab-retail"
+          onClick={() => setTab("retail")}>
+          Retail Prices
+        </button>
+        <button type="button" role="tab" aria-selected={tab === "calc"}
+          className={`tab${tab === "calc" ? " active" : ""}`} data-testid="tab-calc"
+          onClick={() => setTab("calc")}>
+          Calculator
         </button>
       </nav>
 
-      {!filters.region ? (
-        <div className="region-prompt" data-testid="region-prompt">
-          <h3>Select a region to view pricing</h3>
-          <p className="muted">
-            Prices vary by Azure region, so choose a <strong>Region</strong> above to see model
-            pricing. Global pricing is included automatically for the region you pick.
-          </p>
-        </div>
-      ) : filtered.length === 0 ? (
-        <NoResults
-          records={records}
-          filters={filters}
-          regionLabels={regionLabels}
-          setFilter={setFilter}
-          clearAll={() => setFilter({ ...EMPTY })}
-        />
+      {tab === "calc" ? (
+        <Calculator records={records} regionLabels={regionLabels} />
       ) : (
-        <PricingTable records={filtered} selectedCategory={filters.category} ptuRecords={ptuRecords} onSelectModel={setSelected} />
+        <>
+          <Filters
+            records={records}
+            filters={filters}
+            setFilter={setFilter}
+            regionLabels={regionLabels}
+            resultCount={filtered.length}
+          />
+
+          <nav className="toolbar">
+            {filters.region && <span className="result-count" data-testid="result-count">{filtered.length} rows</span>}
+            <button type="button" className="export" onClick={exportFiltered} disabled={!filters.region}>
+              Export filtered CSV
+            </button>
+          </nav>
+
+          {!filters.region ? (
+            <div className="region-prompt" data-testid="region-prompt">
+              <h3>Select a region to view pricing</h3>
+              <p className="muted">
+                Prices vary by Azure region, so choose a <strong>Region</strong> above to see model
+                pricing. Global pricing is included automatically for the region you pick.
+              </p>
+            </div>
+          ) : filtered.length === 0 ? (
+            <NoResults
+              records={records}
+              filters={filters}
+              regionLabels={regionLabels}
+              setFilter={setFilter}
+              clearAll={() => setFilter({ ...EMPTY })}
+            />
+          ) : (
+            <PricingTable records={filtered} selectedCategory={filters.category} ptuRecords={ptuRecords} onSelectModel={setSelected} />
+          )}
+        </>
       )}
 
       <footer className="app-foot">

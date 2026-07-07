@@ -86,7 +86,7 @@ const DEPLOYMENT_ORDER = [
   "Standard",
 ];
 
-function orderDeployments(list) {
+export function orderDeployments(list) {
   return [...list].sort((a, b) => {
     const ia = DEPLOYMENT_ORDER.indexOf(a);
     const ib = DEPLOYMENT_ORDER.indexOf(b);
@@ -265,4 +265,113 @@ export function fmtUSD(n, max = 4) {
 export function fmtNum(n) {
   if (n == null) return "—";
   return new Intl.NumberFormat("en-US").format(n);
+}
+
+// ---- Pricing calculator ---------------------------------------------------
+// Per-region view used by the Calculator tab. Token pricing is per model+
+// deployment; PTU (provisioned) pricing is per provider and grafted onto every
+// model of that provider, mirroring the comparison table. Region filtering
+// includes universal (Global) meters via applyFilters.
+export function buildRegionCalcData(records, region) {
+  const scoped = applyFilters(records, { region });
+
+  // Token pricing mirrors the comparison table's default: prefer the standard
+  // (non-pp) meter per direction, falling back to priority-processing only when
+  // no standard meter exists for that direction.
+  const idxTok = (entries) => {
+    const m = new Map();
+    for (const e of entries) m.set(`${e.provider}||${e.model}||${e.deployment}`, e);
+    return m;
+  };
+  const std = idxTok(buildModelPricing(scoped.filter((r) => !r.priorityProcessing)));
+  const pp = idxTok(buildModelPricing(scoped.filter((r) => r.priorityProcessing)));
+
+  const models = new Map();          // key -> { key, provider, model }
+  const tokenPrice = new Map();      // `${key}||${deployment}` -> { Input, Output, "Cached Input" }
+  const tokenDeps = new Map();       // key -> Set<deployment>
+  for (const tripleKey of new Set([...std.keys(), ...pp.keys()])) {
+    const [provider, model, deployment] = tripleKey.split("||");
+    const s = std.get(tripleKey);
+    const p = pp.get(tripleKey);
+    const prices = {};
+    for (const dir of TOKEN_DIRECTIONS) {
+      const chosen = s?.prices?.[dir] ?? p?.prices?.[dir];
+      if (chosen) prices[dir] = chosen;
+    }
+    const key = `${provider}||${model}`;
+    if (!models.has(key)) models.set(key, { key, provider, model });
+    tokenPrice.set(`${key}||${deployment}`, prices);
+    if (!tokenDeps.has(key)) tokenDeps.set(key, new Set());
+    tokenDeps.get(key).add(deployment);
+  }
+
+  // PTU is billed per provider; prefer the hourly consumption meter per deployment.
+  const ptuEntries = buildUnitPricing(scoped, "PTU");
+  const ptuByProvider = new Map();   // provider -> Map<deployment, { deployment, price, measure, isHourly, meterName }>
+  for (const e of ptuEntries) {
+    if (!ptuByProvider.has(e.provider)) ptuByProvider.set(e.provider, new Map());
+    const dm = ptuByProvider.get(e.provider);
+    const existing = dm.get(e.deployment);
+    const isHourly = /\/hr$/i.test(e.measure) || e.isHourly;
+    if (!existing || (isHourly && !existing.isHourly)) {
+      dm.set(e.deployment, {
+        deployment: e.deployment, price: e.price, measure: e.measure, isHourly, meterName: e.meterName,
+      });
+    }
+  }
+
+  const modelList = [...models.values()].sort(
+    (a, b) => a.provider.localeCompare(b.provider) || a.model.localeCompare(b.model)
+  );
+  return { models: modelList, tokenPrice, tokenDeps, ptuByProvider };
+}
+
+// Deployments a given model can be priced under: its own token deployments plus
+// its provider's PTU (provisioned) deployments.
+export function calcDeploymentsFor(regionData, modelKey) {
+  if (!regionData || !modelKey) return [];
+  const [provider] = modelKey.split("||");
+  const tokenSet = regionData.tokenDeps.get(modelKey) || new Set();
+  const ptuMap = regionData.ptuByProvider.get(provider);
+  const all = new Set(tokenSet);
+  if (ptuMap) for (const d of ptuMap.keys()) all.add(d);
+  return orderDeployments([...all]);
+}
+
+// Resolve the pricing + billing mode for one calculator row.
+export function calcPricing(regionData, modelKey, deployment) {
+  if (!regionData || !modelKey || !deployment) return null;
+  const [provider] = modelKey.split("||");
+  const token = regionData.tokenPrice.get(`${modelKey}||${deployment}`);
+  if (token && (regionData.tokenDeps.get(modelKey) || new Set()).has(deployment)) {
+    return { mode: "tokens", prices: token };
+  }
+  const ptu = regionData.ptuByProvider.get(provider)?.get(deployment);
+  if (ptu) return { mode: "ptu", ptu };
+  return null;
+}
+
+// Total cost for a row given its inputs. Token counts are entered in millions
+// and priced per 1M; PTU is rate × units (× hours for hourly meters).
+export function calcRowTotal(pricing, inputs) {
+  if (!pricing) return null;
+  if (pricing.mode === "tokens") {
+    let total = 0;
+    for (const c of calcTokenCosts(pricing, inputs)) if (c.cost != null) total += c.cost;
+    return total;
+  }
+  const units = inputs.ptus || 0;
+  const hours = pricing.ptu.isHourly ? (inputs.hours ?? 0) : 1;
+  return units * pricing.ptu.price * hours;
+}
+
+// Per-direction token cost contributions (tokens are in millions, priced per 1M).
+export function calcTokenCosts(pricing, inputs) {
+  const dirs = [
+    ["Input", inputs.inTokens], ["Output", inputs.outTokens], ["Cached Input", inputs.cachedTokens],
+  ];
+  return dirs.map(([dir, millions]) => {
+    const p = pricing?.prices?.[dir];
+    return { dir, cost: p ? (millions || 0) * p.price : null };
+  });
 }

@@ -1,4 +1,4 @@
-# Azure AI Foundry Model Pricing Explorer
+# AI Foundry Model Pricing
 
 A static React (Vite) site for looking up and comparing **Azure AI Foundry model
 pricing** from the [Azure Retail Prices API](https://prices.azure.com/api/retail/prices)

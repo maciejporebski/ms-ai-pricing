@@ -7,7 +7,7 @@ let comboUid = 0;
 // Searchable dropdown: closed, it behaves like a normal picker showing the
 // selected value. Opening it (click/focus) reveals a listbox with a live text
 // filter, so typing narrows the options while the dropdown stays open.
-function Combobox({ label, value, onChange, options, labels, placeholder = "All" }) {
+export function Combobox({ label, value, onChange, options, labels, placeholder = "All", className = "" }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [activeIndex, setActiveIndex] = useState(-1);
@@ -75,7 +75,7 @@ function Combobox({ label, value, onChange, options, labels, placeholder = "All"
   };
 
   return (
-    <div className="filter combobox" ref={rootRef}>
+    <div className={`filter combobox ${className}`.trim()} ref={rootRef}>
       <span id={`${idRef.current}-label`}>{label}</span>
       <div className="combobox-wrap">
         <input
