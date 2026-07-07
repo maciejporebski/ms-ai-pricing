@@ -134,7 +134,16 @@ function seriesRank(s) {
 function cellArray(sMap) {
   return [...sMap.keys()]
     .sort((a, b) => seriesRank(a) - seriesRank(b) || a.localeCompare(b))
-    .map((key) => ({ key, p: pickPrice(sMap.get(key)) }));
+    .map((key) => {
+      const rows = sMap.get(key);
+      const std = rows.filter((r) => !r.priorityProcessing);
+      const pp = rows.filter((r) => r.priorityProcessing);
+      return {
+        key,
+        p: std.length ? pickPrice(std) : null,
+        pp: pp.length ? pickPrice(pp) : null,
+      };
+    });
 }
 
 function ptuByProvider(ptuRecords) {

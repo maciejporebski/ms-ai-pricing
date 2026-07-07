@@ -3,21 +3,36 @@ import { buildCategoryMatrix, categoriesPresent, fmtUSD, CATEGORY_HINTS } from "
 
 const DIR_ABBR = { Input: "In", Output: "Out", "Cached Input": "Cached" };
 
+function fmtPrice(p) {
+  return `${fmtUSD(p.price)}${p.varies ? "*" : ""}`;
+}
+
+function priceTitle(p) {
+  return p.varies
+    ? `Varies by region: ${fmtUSD(p.min)}–${fmtUSD(p.max)} (${p.count} meters)`
+    : p.sample.meterName;
+}
+
 function Cell({ items }) {
   if (!items || items.length === 0) return <td className="pt-cell empty">—</td>;
   return (
     <td className="pt-cell">
-      {items.map(({ key, p }) => {
-        if (!p) return null;
+      {items.map(({ key, p, pp }) => {
+        if (!p && !pp) return null;
         const label = DIR_ABBR[key] || key;
         const provisioned = /PTU|unit\//i.test(key);
-        const title = p.varies
-          ? `Varies by region: ${fmtUSD(p.min)}–${fmtUSD(p.max)} (${p.count} meters)`
-          : p.sample.meterName;
+        const title = priceTitle(p || pp);
         return (
           <div key={key} className={`pt-price${provisioned ? " pt-ptu" : ""}`} title={title}>
             <span className="pt-dir">{label}</span>
-            <span className="pt-val">{fmtUSD(p.price)}{p.varies ? "*" : ""}</span>
+            <span className="pt-val">
+              {p ? fmtPrice(p) : null}
+              {pp && (
+                <span className="pt-pp" title={priceTitle(pp)}>
+                  {p ? ` (pp: ${fmtPrice(pp)})` : `pp: ${fmtPrice(pp)}`}
+                </span>
+              )}
+            </span>
           </div>
         );
       })}
@@ -30,7 +45,9 @@ function Cell({ items }) {
 // ordering without needing the user to pick which series to sort by.
 function cellSortValue(row, dep) {
   const items = row.cells[dep];
-  return items && items.length ? items[0]?.p?.price ?? null : null;
+  if (!items || !items.length) return null;
+  const first = items[0];
+  return first?.p?.price ?? first?.pp?.price ?? null;
 }
 
 function compareRows(a, b, sort) {
@@ -149,8 +166,16 @@ export default function PricingTable({ records, selectedCategory, ptuRecords, on
   // Don't graft PTU columns when the user is explicitly viewing the PTU table.
   const augmentSource = selectedCategory === "PTU" ? null : ptuRecords;
 
+  const hasPp = useMemo(() => records.some((r) => r.priorityProcessing), [records]);
+
   return (
     <div data-testid="pricing-table">
+      {hasPp && (
+        <p className="pp-note" data-testid="pp-note">
+          <strong>pp</strong> refers to <strong>priority processing</strong> — a premium tier
+          shown in brackets after the standard price, e.g. <code>$0.75 (pp: $1.50)</code>.
+        </p>
+      )}
       {categories.map((c) => (
         <CategorySection
           key={c}

@@ -53,6 +53,12 @@ function deployment(sku) {
   return "Standard";
 }
 
+// Priority Processing ("pp") meters are a premium, faster-serving tier that
+// Azure prices separately from the standard meter for the same model/direction.
+function priorityProcessing(sku) {
+  return /\bpp\b/.test(" " + splitCamel(sku).toLowerCase() + " ");
+}
+
 function direction(s0) {
   const s = " " + splitCamel(s0).toLowerCase() + " ";
   const cached = /\bcd\b|\bcchd\b|cache|cached/.test(s);
@@ -182,6 +188,7 @@ export function normalize(row) {
     deployment: dep,
     direction: dir,
     category: cat,
+    priorityProcessing: priorityProcessing(row.skuName),
     measure: measureLabel(row.unitOfMeasure, row.meterName, cat),
     region: row.armRegionName || "",
     location: row.location || "",
@@ -198,4 +205,4 @@ export function normalize(row) {
   };
 }
 
-export const _internals = { provider, deployment, direction, modelName, category, scopeOf, measureLabel };
+export const _internals = { provider, deployment, direction, modelName, category, scopeOf, measureLabel, priorityProcessing };

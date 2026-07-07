@@ -70,6 +70,18 @@ test("comparison table renders models, deployment columns and token prices", asy
   expect(await table.locator("tbody tr").count()).toBeGreaterThan(20);
 });
 
+test("priority processing prices show in brackets with an explanatory note", async ({ page }) => {
+  await waitForData(page);
+  await pickRegion(page);
+  await pickOption(page, "Provider", "OpenAI");
+  await pickOption(page, "Model", "GPT 5");
+  const note = page.getByTestId("pp-note");
+  await expect(note).toBeVisible();
+  await expect(note).toContainText("priority processing");
+  const table = page.getByTestId("table-Tokens");
+  await expect(table.locator("tbody")).toContainText("(pp:");
+});
+
 test("provisioned (PTU) pricing is integrated as columns in each model row", async ({ page }) => {
   await waitForData(page);
   await pickRegion(page);

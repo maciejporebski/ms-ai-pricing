@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { normalize, _internals } from "./normalize.mjs";
 
-const { deployment, direction, scopeOf, category, modelName } = _internals;
+const { deployment, direction, scopeOf, category, modelName, priorityProcessing } = _internals;
 
 function row(o) {
   return {
@@ -74,6 +74,15 @@ test("version-led variants are prefixed consistently with the base model", () =>
   // Non-GPT families under ambiguous products are NOT mislabeled.
   assert.equal(modelName("Azure OpenAI OSS Models", "20b inp Gl"), "20b");
   assert.equal(modelName("Azure OpenAI Reasoning", "o4 mini inp Gl"), "o4 mini");
+});
+
+test("priority processing (pp) meters are flagged, standard meters are not", () => {
+  assert.equal(priorityProcessing("5 mini pp Inp Gl"), true);
+  assert.equal(priorityProcessing("5 pp cd inp Gl"), true);
+  assert.equal(priorityProcessing("5.4 opt Dz"), false);
+  assert.equal(priorityProcessing("gpt 4.1 Inp regnl"), false);
+  assert.equal(normalize(row({ skuName: "5 mini pp Inp Gl" })).priorityProcessing, true);
+  assert.equal(normalize(row({ skuName: "5.4 opt Dz" })).priorityProcessing, false);
 });
 
 test("scopeOf one-word datazone and regn", () => {
