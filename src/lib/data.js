@@ -287,7 +287,8 @@ export function buildRegionCalcData(records, region) {
   const pp = idxTok(buildModelPricing(scoped.filter((r) => r.priorityProcessing)));
 
   const models = new Map();          // key -> { key, provider, model }
-  const tokenPrice = new Map();      // `${key}||${deployment}` -> { Input, Output, "Cached Input" }
+  const tokenPrice = new Map();      // `${key}||${deployment}` -> { Input, Output, "Cached Input" }  (standard-preferred)
+  const tokenPricePP = new Map();    // `${key}||${deployment}` -> { dir: pickPrice }  (priority-processing meters)
   const tokenDeps = new Map();       // key -> Set<deployment>
   for (const tripleKey of new Set([...std.keys(), ...pp.keys()])) {
     const [provider, model, deployment] = tripleKey.split("||");
@@ -301,6 +302,11 @@ export function buildRegionCalcData(records, region) {
     const key = `${provider}||${model}`;
     if (!models.has(key)) models.set(key, { key, provider, model });
     tokenPrice.set(`${key}||${deployment}`, prices);
+    if (p?.prices) {
+      const ppPrices = {};
+      for (const dir of TOKEN_DIRECTIONS) if (p.prices[dir]) ppPrices[dir] = p.prices[dir];
+      if (Object.keys(ppPrices).length) tokenPricePP.set(`${key}||${deployment}`, ppPrices);
+    }
     if (!tokenDeps.has(key)) tokenDeps.set(key, new Set());
     tokenDeps.get(key).add(deployment);
   }
@@ -323,7 +329,7 @@ export function buildRegionCalcData(records, region) {
   const modelList = [...models.values()].sort(
     (a, b) => a.provider.localeCompare(b.provider) || a.model.localeCompare(b.model)
   );
-  return { models: modelList, tokenPrice, tokenDeps, ptuByProvider };
+  return { models: modelList, tokenPrice, tokenPricePP, tokenDeps, ptuByProvider };
 }
 
 // Deployments a given model can be priced under: its own token deployments plus
@@ -338,13 +344,27 @@ export function calcDeploymentsFor(regionData, modelKey) {
   return orderDeployments([...all]);
 }
 
-// Resolve the pricing + billing mode for one calculator row.
-export function calcPricing(regionData, modelKey, deployment) {
+// Resolve the pricing + billing mode for one calculator row. When usePP is set
+// and the model+deployment has priority-processing meters, pp prices are used
+// per direction (falling back to standard where a pp meter is absent).
+export function calcPricing(regionData, modelKey, deployment, usePP = false) {
   if (!regionData || !modelKey || !deployment) return null;
   const [provider] = modelKey.split("||");
   const token = regionData.tokenPrice.get(`${modelKey}||${deployment}`);
   if (token && (regionData.tokenDeps.get(modelKey) || new Set()).has(deployment)) {
-    return { mode: "tokens", prices: token };
+    const ppToken = regionData.tokenPricePP?.get(`${modelKey}||${deployment}`);
+    const hasPP = !!ppToken && TOKEN_DIRECTIONS.some(
+      (dir) => ppToken[dir] && token[dir] && ppToken[dir].price !== token[dir].price
+    );
+    let prices = token;
+    if (usePP && hasPP) {
+      prices = {};
+      for (const dir of TOKEN_DIRECTIONS) {
+        const chosen = ppToken[dir] ?? token[dir];
+        if (chosen) prices[dir] = chosen;
+      }
+    }
+    return { mode: "tokens", prices, hasPP, pp: usePP && hasPP };
   }
   const ptu = regionData.ptuByProvider.get(provider)?.get(deployment);
   if (ptu) return { mode: "ptu", ptu };

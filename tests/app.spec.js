@@ -226,3 +226,46 @@ test("calculator computes PTU cost from provisioned hosting", async ({ page }) =
   await row.getByRole("spinbutton", { name: "Hours" }).fill("730");
   await expect(row.getByTestId("calc-total")).toContainText("$7,300.00");
 });
+
+test("priority processing checkbox switches to pp pricing for supported models", async ({ page }) => {
+  await waitForData(page);
+  await page.getByTestId("tab-calc").click();
+  const row = page.getByTestId("calculator").getByTestId("calc-row").first();
+  await pickInRow(row, page, "Location", REGION);
+  await pickInRow(row, page, "Model", "OpenAI — GPT 5");
+  await pickInRow(row, page, "Hosting type", "Global");
+  await row.getByRole("spinbutton", { name: "Input (M tokens)" }).fill("1");
+  await expect(row.getByTestId("calc-total")).toContainText("$1.25");
+  await row.getByTestId("calc-pp").locator("input").check();
+  await expect(row.getByTestId("calc-total")).toContainText("$2.50");
+});
+
+test("calculator persists rows across reload and tab navigation", async ({ page }) => {
+  await waitForData(page);
+  await page.getByTestId("tab-calc").click();
+  const row = page.getByTestId("calculator").getByTestId("calc-row").first();
+  await pickInRow(row, page, "Location", REGION);
+  await pickInRow(row, page, "Model", "OpenAI — GPT 5");
+  await pickInRow(row, page, "Hosting type", "Global");
+  await row.getByRole("spinbutton", { name: "Input (M tokens)" }).fill("3");
+
+  await page.reload();
+  await expect(page.getByTestId("filters")).toBeVisible({ timeout: 20000 });
+  await page.getByTestId("tab-calc").click();
+  const restored = page.getByTestId("calculator").getByTestId("calc-row").first();
+  await expect(restored.getByRole("spinbutton", { name: "Input (M tokens)" })).toHaveValue("3");
+  await expect(restored.getByTestId("calc-total")).toContainText("$3.75");
+});
+
+test("clear button resets the calculator to a single empty row", async ({ page }) => {
+  await waitForData(page);
+  await page.getByTestId("tab-calc").click();
+  const calc = page.getByTestId("calculator");
+  await pickInRow(calc.getByTestId("calc-row").first(), page, "Location", REGION);
+  await page.getByTestId("calc-add-row").click();
+  await expect(calc.getByTestId("calc-row")).toHaveCount(2);
+  await page.getByTestId("calc-clear").click();
+  await expect(calc.getByTestId("calc-row")).toHaveCount(1);
+  await expect(calc.getByTestId("calc-row").first().getByRole("combobox", { name: "Location", exact: true }))
+    .toHaveValue("");
+});

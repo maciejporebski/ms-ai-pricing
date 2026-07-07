@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   uniqueSorted, buildRegionCalcData, calcDeploymentsFor, calcPricing, calcRowTotal, calcTokenCosts,
   fmtUSD,
@@ -6,14 +6,30 @@ import {
 import { UNIVERSAL_REGIONS, regionName } from "../lib/regions.js";
 import { Combobox } from "./Filters.jsx";
 
+const STORAGE_KEY = "ai-pricing-calc-rows-v1";
+
 let rowUid = 0;
 function newRow() {
   return {
     id: ++rowUid,
     region: "", model: "", deployment: "",
     inTokens: "", outTokens: "", cachedTokens: "",
-    ptus: "", hours: "730",
+    ptus: "", hours: "730", pp: false,
   };
+}
+
+function loadRows() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    const parsed = raw ? JSON.parse(raw) : null;
+    if (Array.isArray(parsed) && parsed.length) {
+      rowUid = parsed.reduce((m, r) => Math.max(m, Number(r.id) || 0), 0);
+      return parsed.map((r) => ({ ...newRow(), ...r }));
+    }
+  } catch {
+    /* ignore malformed storage */
+  }
+  return [newRow()];
 }
 
 const num = (s) => {
@@ -59,8 +75,8 @@ function CalcRow({ record, regionData, regions, regionLabels, onChange, onRemove
   }, [regionData, record.model, deployments]);
 
   const pricing = useMemo(
-    () => calcPricing(regionData, record.model, record.deployment),
-    [regionData, record.model, record.deployment]
+    () => calcPricing(regionData, record.model, record.deployment, record.pp),
+    [regionData, record.model, record.deployment, record.pp]
   );
 
   const inputs = {
@@ -94,6 +110,13 @@ function CalcRow({ record, regionData, regions, regionLabels, onChange, onRemove
           className="calc-cb-hosting"
           placeholder={record.model ? "Select hosting…" : "Pick a model first"}
           onChange={(v) => onChange({ deployment: v })} />
+        {pricing?.hasPP && (
+          <label className="calc-pp" data-testid="calc-pp">
+            <input type="checkbox" checked={!!record.pp}
+              onChange={(e) => onChange({ pp: e.target.checked })} />
+            <span>Priority processing</span>
+          </label>
+        )}
       </div>
 
       <div className="calc-inputs">
@@ -127,7 +150,15 @@ function CalcRow({ record, regionData, regions, regionLabels, onChange, onRemove
 }
 
 export default function Calculator({ records, regionLabels }) {
-  const [rows, setRows] = useState(() => [newRow()]);
+  const [rows, setRows] = useState(loadRows);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(rows));
+    } catch {
+      /* storage may be unavailable (private mode / quota) */
+    }
+  }, [rows]);
 
   const regions = useMemo(
     () => uniqueSorted(records, "region")
@@ -150,16 +181,30 @@ export default function Calculator({ records, regionLabels }) {
     setRows((rs) => rs.map((r) => (r.id === id ? { ...r, ...patch } : r)));
   const addRow = () => setRows((rs) => [...rs, newRow()]);
   const removeRow = (id) => setRows((rs) => rs.filter((r) => r.id !== id));
+  const clearRows = () => setRows([newRow()]);
 
   const grandTotal = rows.reduce((sum, r) => {
     const rd = getRegionData(r.region);
-    const pricing = calcPricing(rd, r.model, r.deployment);
+    const pricing = calcPricing(rd, r.model, r.deployment, r.pp);
     const t = calcRowTotal(pricing, {
       inTokens: num(r.inTokens), outTokens: num(r.outTokens), cachedTokens: num(r.cachedTokens),
       ptus: num(r.ptus), hours: num(r.hours),
     });
     return sum + (t || 0);
   }, 0);
+
+  const exportCsv = () => {
+    const csv = rowsToCsv(rows, getRegionData);
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `ai-pricing-calculator-${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  };
 
   return (
     <section className="calculator" data-testid="calculator">
@@ -185,9 +230,17 @@ export default function Calculator({ records, regionLabels }) {
       </div>
 
       <div className="calc-foot">
-        <button type="button" className="btn" onClick={addRow} data-testid="calc-add-row">
-          + Add row
-        </button>
+        <div className="calc-actions">
+          <button type="button" className="btn" onClick={addRow} data-testid="calc-add-row">
+            + Add row
+          </button>
+          <button type="button" className="btn" onClick={exportCsv} data-testid="calc-export">
+            Export CSV
+          </button>
+          <button type="button" className="btn btn-quiet" onClick={clearRows} data-testid="calc-clear">
+            Clear
+          </button>
+        </div>
         <div className="calc-grand" data-testid="calc-grand-total">
           <span className="muted">Total (all rows)</span>
           <strong>{fmtUSD(grandTotal, 2)}</strong>
@@ -195,4 +248,57 @@ export default function Calculator({ records, regionLabels }) {
       </div>
     </section>
   );
+}
+
+const CSV_HEADERS = [
+  "Region", "Provider", "Model", "Hosting Type", "Billing Mode", "Priority Processing",
+  "Input (M tokens)", "Output (M tokens)", "Cached (M tokens)", "PTUs", "Hours",
+  "Input Cost (USD)", "Output Cost (USD)", "Cached Cost (USD)", "PTU Cost (USD)",
+  "Input Meter", "Output Meter", "Cached Meter", "PTU Meter", "Total (USD)",
+];
+
+function csvCell(v) {
+  const s = v == null ? "" : String(v);
+  return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+}
+
+function money(n) {
+  return n == null || Number.isNaN(n) ? "" : n.toFixed(4);
+}
+
+function rowsToCsv(rows, getRegionData) {
+  const lines = [CSV_HEADERS];
+  for (const r of rows) {
+    const rd = getRegionData(r.region);
+    const pricing = calcPricing(rd, r.model, r.deployment, r.pp);
+    const [provider, model] = r.model ? r.model.split("||") : ["", ""];
+    const inputs = {
+      inTokens: num(r.inTokens), outTokens: num(r.outTokens), cachedTokens: num(r.cachedTokens),
+      ptus: num(r.ptus), hours: num(r.hours),
+    };
+    const total = calcRowTotal(pricing, inputs);
+    const isTokens = pricing?.mode === "tokens";
+    const isPtu = pricing?.mode === "ptu";
+    const tokenCosts = isTokens ? calcTokenCosts(pricing, inputs) : [];
+    const costOf = (dir) => tokenCosts.find((c) => c.dir === dir)?.cost;
+    const meterOf = (dir) => pricing?.prices?.[dir]?.sample?.meterName || "";
+    const ptuCost = isPtu
+      ? inputs.ptus * pricing.ptu.price * (pricing.ptu.isHourly ? inputs.hours : 1)
+      : null;
+    lines.push([
+      r.region ? regionName(r.region) : "",
+      provider, model, r.deployment,
+      pricing?.mode || "",
+      r.pp && pricing?.hasPP ? "Yes" : "No",
+      r.inTokens, r.outTokens, r.cachedTokens, r.ptus, isPtu ? r.hours : "",
+      isTokens ? money(costOf("Input")) : "",
+      isTokens ? money(costOf("Output")) : "",
+      isTokens ? money(costOf("Cached Input")) : "",
+      isPtu ? money(ptuCost) : "",
+      meterOf("Input"), meterOf("Output"), meterOf("Cached Input"),
+      isPtu ? (pricing.ptu.meterName || "") : "",
+      money(total),
+    ]);
+  }
+  return lines.map((row) => row.map(csvCell).join(",")).join("\r\n");
 }

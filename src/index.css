@@ -162,6 +162,11 @@ button.link:hover { text-decoration: underline; }
 .calc-rate { font-size: 11px; color: var(--muted); }
 .calc-cost { font-size: 12px; font-weight: 600; color: var(--accent); font-variant-numeric: tabular-nums; }
 .calc-cb-hosting .combobox-wrap input { min-width: 240px; }
+.calc-pp {
+  display: flex; align-items: center; gap: 6px; align-self: flex-end;
+  padding-bottom: 8px; font-size: 12px; color: var(--text); cursor: pointer; white-space: nowrap;
+}
+.calc-pp input { width: auto; min-width: 0; margin: 0; cursor: pointer; }
 .calc-result { display: flex; align-items: center; gap: 12px; margin-left: auto; align-self: center; }
 .calc-total { display: flex; flex-direction: column; gap: 2px; text-align: right; }
 .calc-total strong { font-size: 18px; font-variant-numeric: tabular-nums; }
@@ -175,6 +180,9 @@ button.link:hover { text-decoration: underline; }
   display: flex; align-items: center; gap: 16px; margin-top: 14px;
   padding-top: 14px; border-top: 1px solid var(--border);
 }
+.calc-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.btn-quiet { color: var(--muted); }
+.btn-quiet:hover { color: #ffd7d7; border-color: #a33; }
 .calc-grand { margin-left: auto; display: flex; align-items: baseline; gap: 12px; }
 .calc-grand strong { font-size: 22px; font-variant-numeric: tabular-nums; }
 
