@@ -178,10 +178,7 @@ table.pt.small { font-size: 12px; }
 .pt-price.pt-ptu .pt-val { color: #c9a8ff; }
 .pt-dir { color: var(--muted); font-size: 11px; }
 .pt-val { font-variant-numeric: tabular-nums; }
-.pt-pp { color: var(--muted); font-size: 11px; white-space: nowrap; }
-.pp-note { font-size: 12px; color: var(--muted); margin: 0 2px 12px; }
-.pp-note strong { color: var(--text); }
-.pp-note code { font-size: 11px; }
+.pt-pp { color: var(--muted); font-size: 11px; white-space: nowrap; cursor: help; }
 .pt-ptu { color: #c9a8ff; }
 .pt-ptu-col { background: #221c2e; }
 

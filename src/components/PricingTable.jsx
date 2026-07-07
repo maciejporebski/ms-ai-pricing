@@ -3,6 +3,9 @@ import { buildCategoryMatrix, categoriesPresent, fmtUSD, CATEGORY_HINTS } from "
 
 const DIR_ABBR = { Input: "In", Output: "Out", "Cached Input": "Cached" };
 
+const PP_EXPLANATION =
+  "pp = priority processing — a premium, faster-serving tier priced separately from the standard meter.";
+
 function fmtPrice(p) {
   return `${fmtUSD(p.price)}${p.varies ? "*" : ""}`;
 }
@@ -10,7 +13,7 @@ function fmtPrice(p) {
 function priceTitle(p) {
   return p.varies
     ? `Varies by region: ${fmtUSD(p.min)}–${fmtUSD(p.max)} (${p.count} meters)`
-    : p.sample.meterName;
+    : `Meter ID: ${p.sample.meterName}`;
 }
 
 function Cell({ items }) {
@@ -28,7 +31,7 @@ function Cell({ items }) {
             <span className="pt-val">
               {p ? fmtPrice(p) : null}
               {pp && (
-                <span className="pt-pp" title={priceTitle(pp)}>
+                <span className="pt-pp" title={`${PP_EXPLANATION}\n${priceTitle(pp)}`}>
                   {p ? ` (pp: ${fmtPrice(pp)})` : `pp: ${fmtPrice(pp)}`}
                 </span>
               )}
@@ -166,16 +169,8 @@ export default function PricingTable({ records, selectedCategory, ptuRecords, on
   // Don't graft PTU columns when the user is explicitly viewing the PTU table.
   const augmentSource = selectedCategory === "PTU" ? null : ptuRecords;
 
-  const hasPp = useMemo(() => records.some((r) => r.priorityProcessing), [records]);
-
   return (
     <div data-testid="pricing-table">
-      {hasPp && (
-        <p className="pp-note" data-testid="pp-note">
-          <strong>pp</strong> refers to <strong>priority processing</strong> — a premium tier
-          shown in brackets after the standard price, e.g. <code>$0.75 (pp: $1.50)</code>.
-        </p>
-      )}
       {categories.map((c) => (
         <CategorySection
           key={c}
