@@ -78,15 +78,19 @@ const STRIP = [
   /-in-/gi, /-out-/gi, /\bmdl\b/gi, /\bgrdr\b/gi, /\bgrader\b/gi,
 ];
 
-// Recognizable model family from the productName, used to salvage over-stripped
-// SKU-derived names like "5" or "4.3". Drops Azure + packaging/company-only words
-// but keeps brand/family tokens; the last remaining token is the family
-// ("Azure OpenAI GPT5" -> "GPT", "Azure Grok Models" -> "Grok").
+// Model family inferred from the productName, used to make version-led SKU names
+// read consistently (e.g. "5.4 mini" -> "GPT 5.4 mini"). Only families on this
+// allow-list are ever prepended, so ambiguous product words like "Media",
+// "Reasoning" or "OSS" never get mislabeled as a family.
 const PRODUCT_STRIP = /\b(azure|models?|reservation|provisioned|throughput|managed|compute|agent|foundry|microsoft|openai|pp|ft)\b/gi;
+const KNOWN_FAMILY = /^(GPT|Grok|Llama|Phi|Mistral|Ministral|Codestral|Qwen|DeepSeek|Kimi|Flux|Command|Embed|MAI|Sora)$/i;
 function familyFromProduct(productName) {
   const toks = productName.replace(PRODUCT_STRIP, " ").match(/[A-Za-z]{2,}/g) || [];
-  const last = toks[toks.length - 1];
-  return last ? last.match(/^[A-Za-z]+/)[0] : "";
+  for (let i = toks.length - 1; i >= 0; i--) {
+    const t = toks[i].match(/^[A-Za-z]+/)[0];
+    if (KNOWN_FAMILY.test(t)) return /^gpt$/i.test(t) ? "GPT" : t;
+  }
+  return "";
 }
 
 function modelName(productName, sku) {
@@ -94,10 +98,13 @@ function modelName(productName, sku) {
   m = m.replace(/^FW\s+/i, "").replace(/^Mngd\s+/i, "");
   for (const re of STRIP) m = m.replace(re, " ");
   m = m.replace(/[-_]+/g, " ").replace(/\s+/g, " ").trim();
-  if (!m) {
-    m = productName.replace(/^Azure\s+/i, "").replace(/\s+Models$/i, "");
-  } else if (/^[\d.]+$/.test(m)) {
-    // Bare number remnant (e.g. "5", "4.3"): prepend the family -> "GPT 5", "Grok 4.3".
+  if (!m) return productName.replace(/^Azure\s+/i, "").replace(/\s+Models$/i, "");
+  // Canonicalize a literal leading "gpt" to "GPT" (e.g. "gpt 4.1 mini").
+  m = m.replace(/^gpt\b/i, "GPT");
+  // Prepend the family when the name starts with a bare version number
+  // ("5.4 mini" -> "GPT 5.4 mini", "4.3 Inp" -> "Grok 4.3"), so variants of the
+  // same family are grouped and read consistently.
+  if (/^\d/.test(m)) {
     const fam = familyFromProduct(productName);
     if (fam && !new RegExp(`^${fam}\\b`, "i").test(m)) m = `${fam} ${m}`;
   }

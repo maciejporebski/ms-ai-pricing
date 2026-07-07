@@ -63,6 +63,19 @@ test("over-stripped names get the model family prefixed", () => {
   assert.equal(modelName("Azure Deepseek Models", "R1 Inp glbl"), "R1");
 });
 
+test("version-led variants are prefixed consistently with the base model", () => {
+  // The bug the user reported: "5.4 mini" vs "GPT 5.4" under the same product.
+  assert.equal(modelName("Azure OpenAI GPT5", "5.4 mini cd Inp Gl"), "GPT 5.4 mini");
+  assert.equal(modelName("Azure OpenAI GPT5", "5 mini pp Inp Gl"), "GPT 5 mini");
+  assert.equal(modelName("Azure OpenAI PP FT GPT4s", "4o 0806"), "GPT 4o 0806");
+  // Literal lowercase "gpt" is canonicalized to "GPT".
+  assert.equal(modelName("Azure OpenAI", "gpt-4.1-mini-ft mdl opt"), "GPT 4.1 mini");
+  assert.equal(modelName("Azure OpenAI", "gpt 5 codex"), "GPT 5 codex");
+  // Non-GPT families under ambiguous products are NOT mislabeled.
+  assert.equal(modelName("Azure OpenAI OSS Models", "20b inp Gl"), "20b");
+  assert.equal(modelName("Azure OpenAI Reasoning", "o4 mini inp Gl"), "o4 mini");
+});
+
 test("scopeOf one-word datazone and regn", () => {
   assert.equal(scopeOf(" computer-use-outp-datazone "), "Data Zone");
   assert.equal(scopeOf(" gpt4o realtime cached audio inp regn "), "Regional");

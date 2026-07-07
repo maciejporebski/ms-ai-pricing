@@ -74,7 +74,7 @@ test("provisioned (PTU) pricing is integrated as columns in each model row", asy
   await waitForData(page);
   await pickRegion(page);
   await pickOption(page, "Provider", "OpenAI");
-  await pickOption(page, "Model", "5.4 mini");
+  await pickOption(page, "Model", "GPT 5.4 mini");
   const table = page.getByTestId("table-Tokens");
   await expect(table.locator("thead")).toContainText("Provisioned");
   await expect(table.locator("tbody")).toContainText("PTU/hr");
@@ -146,7 +146,7 @@ test("provisioned + specific model shows guided no-results with a working fix", 
   await waitForData(page);
   await pickRegion(page);
   await pickOption(page, "Provider", "OpenAI");
-  await pickOption(page, "Model", "5.4 mini");
+  await pickOption(page, "Model", "GPT 5.4 mini");
   await pickOption(page, "Category", "PTU");
 
   const nr = page.getByTestId("no-results");
