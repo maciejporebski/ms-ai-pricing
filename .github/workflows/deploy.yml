@@ -3,6 +3,7 @@ name: Deploy to GitHub Pages
 on:
   push:
     branches: [main]
+    paths: /src/*
   workflow_dispatch:
   schedule:
     # Refresh pricing snapshot daily at 06:00 UTC.
