@@ -1,4 +1,4 @@
-# AI Foundry Model Pricing
+# AI Foundry Model Pricing ([ai-pricing.azxplorer.com](ai-pricing.azxplorer.com))
 
 Look up and compare Azure AI Foundry model pricing, pulled directly from the
 [Azure Retail Prices API](https://prices.azure.com/api/retail/prices).
