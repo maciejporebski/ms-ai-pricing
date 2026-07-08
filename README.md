@@ -8,7 +8,7 @@ Look up and compare Azure AI Foundry model pricing, pulled directly from the
 Filter by region, provider, model, and category to browse normalized pricing
 for every AI Foundry model and billing type.
 
-![Retail Prices tab](foundry-light.png)
+![Retail Prices tab](retail-prices.png)
 
 ## Calculator
 
