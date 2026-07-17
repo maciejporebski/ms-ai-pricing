@@ -77,7 +77,6 @@ jobs:
           template-file: infra/main.bicep
           parameters: |
             staticWebAppName: ${{ vars.AZURE_STATIC_WEB_APP_NAME }}
-            customDomain: '${{ vars.CUSTOM_DOMAIN }}'
 
       - name: Retrieve deployment token
         id: deployment-token
