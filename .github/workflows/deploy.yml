@@ -1,22 +1,18 @@
-name: Deploy to GitHub Pages
+name: Deploy to Azure Static Web Apps
 
 on:
   push:
     branches: [main]
-    paths: /src/*
   workflow_dispatch:
   schedule:
-    # Refresh pricing snapshot daily at 06:00 UTC.
     - cron: "0 6 * * *"
 
 permissions:
   contents: read
-  pages: write
   id-token: write
 
-# Allow one concurrent deployment; let scheduled runs supersede each other.
 concurrency:
-  group: pages
+  group: azure-static-web-app
   cancel-in-progress: true
 
 jobs:
@@ -39,20 +35,80 @@ jobs:
         run: npm run test:unit
 
       - name: Build site
-        env:
-          BASE_PATH: /
         run: npm run build
 
-      - uses: actions/upload-pages-artifact@v3
+      - uses: actions/upload-artifact@v4
         with:
+          name: static-site
           path: dist
+          if-no-files-found: error
 
   deploy:
     needs: build
     runs-on: ubuntu-latest
     environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
+      name: production
+      url: ${{ steps.deploy.outputs.static_web_app_url }}
     steps:
-      - id: deployment
-        uses: actions/deploy-pages@v4
+      - uses: actions/checkout@v4
+
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Create resource group
+        env:
+          AZURE_LOCATION: ${{ vars.AZURE_LOCATION }}
+          AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
+        run: az group create --name "$AZURE_RESOURCE_GROUP" --location "$AZURE_LOCATION"
+
+      - name: Deploy infrastructure
+        id: infrastructure
+        uses: azure/bicep-deploy@v2
+        with:
+          type: deployment
+          operation: create
+          name: static-web-app-${{ github.run_id }}
+          scope: resourceGroup
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          resource-group-name: ${{ vars.AZURE_RESOURCE_GROUP }}
+          template-file: infra/main.bicep
+          parameters: |
+            staticWebAppName: ${{ vars.AZURE_STATIC_WEB_APP_NAME }}
+            customDomain: '${{ vars.CUSTOM_DOMAIN }}'
+
+      - name: Retrieve deployment token
+        id: deployment-token
+        env:
+          AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
+          AZURE_STATIC_WEB_APP_NAME: ${{ steps.infrastructure.outputs.staticWebAppName }}
+        run: |
+          token="$(az staticwebapp secrets list \
+            --name "$AZURE_STATIC_WEB_APP_NAME" \
+            --resource-group "$AZURE_RESOURCE_GROUP" \
+            --query properties.apiKey \
+            --output tsv)"
+          if [[ -z "$token" ]]; then
+            echo "Azure did not return a deployment token." >&2
+            exit 1
+          fi
+          echo "::add-mask::$token"
+          echo "token=$token" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: static-site
+          path: dist
+
+      - name: Deploy site package
+        id: deploy
+        uses: Azure/static-web-apps-deploy@v1
+        with:
+          azure_static_web_apps_api_token: ${{ steps.deployment-token.outputs.token }}
+          action: upload
+          app_location: dist
+          api_location: ""
+          output_location: ""
+          skip_app_build: true
