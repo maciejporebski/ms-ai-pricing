@@ -194,6 +194,7 @@ export default function Calculator({ records, regionLabels }) {
     const pricing = calcPricing(rd, r.model, r.deployment, r.pp);
     const t = calcRowTotal(pricing, {
       inTokens: num(r.inTokens), outTokens: num(r.outTokens), cachedTokens: num(r.cachedTokens),
+      cacheWriteTokens: num(r.cacheWriteTokens),
       ptus: num(r.ptus), hours: num(r.hours),
     });
     return sum + (t || 0);
@@ -258,9 +259,9 @@ export default function Calculator({ records, regionLabels }) {
 
 const CSV_HEADERS = [
   "Region", "Provider", "Model", "Hosting Type", "Billing Mode", "Priority Processing",
-  "Input (M tokens)", "Output (M tokens)", "Cached (M tokens)", "PTUs", "Hours",
-  "Input Cost (USD)", "Output Cost (USD)", "Cached Cost (USD)", "PTU Cost (USD)",
-  "Input Meter", "Output Meter", "Cached Meter", "PTU Meter", "Total (USD)",
+  "Input (M tokens)", "Output (M tokens)", "Cached (M tokens)", "Cache Write (M tokens)", "PTUs", "Hours",
+  "Input Cost (USD)", "Output Cost (USD)", "Cached Cost (USD)", "Cache Write Cost (USD)", "PTU Cost (USD)",
+  "Input Meter", "Output Meter", "Cached Meter", "Cache Write Meter", "PTU Meter", "Total (USD)",
 ];
 
 function csvCell(v) {
@@ -280,6 +281,7 @@ function rowsToCsv(rows, getRegionData) {
     const [provider, model] = r.model ? r.model.split("||") : ["", ""];
     const inputs = {
       inTokens: num(r.inTokens), outTokens: num(r.outTokens), cachedTokens: num(r.cachedTokens),
+      cacheWriteTokens: num(r.cacheWriteTokens),
       ptus: num(r.ptus), hours: num(r.hours),
     };
     const total = calcRowTotal(pricing, inputs);
@@ -296,12 +298,13 @@ function rowsToCsv(rows, getRegionData) {
       provider, model, r.deployment,
       pricing?.mode || "",
       r.pp && pricing?.hasPP ? "Yes" : "No",
-      r.inTokens, r.outTokens, r.cachedTokens, r.ptus, isPtu ? r.hours : "",
+      r.inTokens, r.outTokens, r.cachedTokens, r.cacheWriteTokens, r.ptus, isPtu ? r.hours : "",
       isTokens ? money(costOf("Input")) : "",
       isTokens ? money(costOf("Output")) : "",
       isTokens ? money(costOf("Cached Input")) : "",
+      isTokens ? money(costOf("Cache Write")) : "",
       isPtu ? money(ptuCost) : "",
-      meterOf("Input"), meterOf("Output"), meterOf("Cached Input"),
+      meterOf("Input"), meterOf("Output"), meterOf("Cached Input"), meterOf("Cache Write"),
       isPtu ? (pricing.ptu.meterName || "") : "",
       money(total),
     ]);

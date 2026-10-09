@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { normalize } from "../scripts/normalize.mjs";
+import { readFile } from "node:fs/promises";
 
 const REGION = "Sweden Central";
 
@@ -324,8 +325,21 @@ test("calculator prices normalized GPT context tiers including cache writes", as
   await expect(row.getByTestId("calc-total")).toContainText("$0.10");
   await row.getByRole("spinbutton", { name: /^Cache write \(M tokens\)/ }).fill("1");
   await expect(row.getByTestId("calc-total")).toContainText("$2.60");
+  await expect(page.getByTestId("calc-grand-total")).toContainText("$2.60");
+  const downloadPromise = page.waitForEvent("download");
+  await page.getByTestId("calc-export").click();
+  const download = await downloadPromise;
+  const csv = await readFile(await download.path(), "utf8");
+  const [headers, values] = csv.split("\r\n").map((line) => line.split(","));
+  const valueOf = (header) => values[headers.indexOf(header)];
+  expect(valueOf("Cache Write (M tokens)")).toBe("1");
+  expect(valueOf("Cache Write Cost (USD)")).toBe("2.5000");
+  expect(valueOf("Cache Write Meter")).toBe("6.1-sol ShortCo Cd Wr Std Gl 1M Tokens");
+  expect(valueOf("Cached Cost (USD)")).toBe("0.1000");
+  expect(valueOf("Total (USD)")).toBe("2.6000");
   await row.getByTestId("calc-pp").locator("input").check();
   await expect(row.getByTestId("calc-total")).toContainText("$5.20");
+  await expect(page.getByTestId("calc-grand-total")).toContainText("$5.20");
   await row.getByTestId("calc-pp").locator("input").uncheck();
   await pickInRow(row, page, "Model", "OpenAI — GPT 6.1 sol (long context)");
   await pickInRow(row, page, "Hosting type", "Global");
@@ -336,4 +350,5 @@ test("calculator prices normalized GPT context tiers including cache writes", as
   const restored = page.getByTestId("calculator").getByTestId("calc-row").first();
   await expect(restored.getByRole("spinbutton", { name: /^Cache write \(M tokens\)/ })).toHaveValue("1");
   await expect(restored.getByTestId("calc-total")).toContainText("$5.20");
+  await expect(page.getByTestId("calc-grand-total")).toContainText("$5.20");
 });
