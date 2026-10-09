@@ -13,7 +13,7 @@ function newRow() {
   return {
     id: ++rowUid,
     region: "", model: "", deployment: "",
-    inTokens: "", outTokens: "", cachedTokens: "",
+    inTokens: "", outTokens: "", cachedTokens: "", cacheWriteTokens: "",
     ptus: "", hours: "730", pp: false,
   };
 }
@@ -81,7 +81,8 @@ function CalcRow({ record, regionData, regions, regionLabels, onChange, onRemove
 
   const inputs = {
     inTokens: num(record.inTokens), outTokens: num(record.outTokens),
-    cachedTokens: num(record.cachedTokens), ptus: num(record.ptus), hours: num(record.hours),
+    cachedTokens: num(record.cachedTokens), cacheWriteTokens: num(record.cacheWriteTokens),
+    ptus: num(record.ptus), hours: num(record.hours),
   };
   const total = calcRowTotal(pricing, inputs);
 
@@ -130,6 +131,11 @@ function CalcRow({ record, regionData, regions, regionLabels, onChange, onRemove
         <NumberField label="Cached (M tokens)" hint={isTokens ? rate("Cached Input") : null} cost={costOf("Cached Input")}
           value={record.cachedTokens} disabled={!isTokens}
           onChange={(v) => onChange({ cachedTokens: v })} />
+        {isTokens && pricing.prices["Cache Write"] && (
+          <NumberField label="Cache write (M tokens)" hint={rate("Cache Write")} cost={costOf("Cache Write")}
+            value={record.cacheWriteTokens} disabled={false}
+            onChange={(v) => onChange({ cacheWriteTokens: v })} />
+        )}
         <NumberField label="PTUs" hint={isPtu ? `${fmtUSD(pricing.ptu.price)} /${pricing.ptu.measure}` : null} cost={ptuCost}
           value={record.ptus} disabled={!isPtu}
           onChange={(v) => onChange({ ptus: v })} />
@@ -189,6 +195,7 @@ export default function Calculator({ records, regionLabels }) {
     const pricing = calcPricing(rd, r.model, r.deployment, r.pp);
     const t = calcRowTotal(pricing, {
       inTokens: num(r.inTokens), outTokens: num(r.outTokens), cachedTokens: num(r.cachedTokens),
+      cacheWriteTokens: num(r.cacheWriteTokens),
       ptus: num(r.ptus), hours: num(r.hours),
     });
     return sum + (t || 0);
@@ -253,9 +260,9 @@ export default function Calculator({ records, regionLabels }) {
 
 const CSV_HEADERS = [
   "Region", "Provider", "Model", "Hosting Type", "Billing Mode", "Priority Processing",
-  "Input (M tokens)", "Output (M tokens)", "Cached (M tokens)", "PTUs", "Hours",
-  "Input Cost (USD)", "Output Cost (USD)", "Cached Cost (USD)", "PTU Cost (USD)",
-  "Input Meter", "Output Meter", "Cached Meter", "PTU Meter", "Total (USD)",
+  "Input (M tokens)", "Output (M tokens)", "Cached (M tokens)", "Cache Write (M tokens)", "PTUs", "Hours",
+  "Input Cost (USD)", "Output Cost (USD)", "Cached Cost (USD)", "Cache Write Cost (USD)", "PTU Cost (USD)",
+  "Input Meter", "Output Meter", "Cached Meter", "Cache Write Meter", "PTU Meter", "Total (USD)",
 ];
 
 function csvCell(v) {
@@ -275,6 +282,7 @@ function rowsToCsv(rows, getRegionData) {
     const [provider, model] = r.model ? r.model.split("||") : ["", ""];
     const inputs = {
       inTokens: num(r.inTokens), outTokens: num(r.outTokens), cachedTokens: num(r.cachedTokens),
+      cacheWriteTokens: num(r.cacheWriteTokens),
       ptus: num(r.ptus), hours: num(r.hours),
     };
     const total = calcRowTotal(pricing, inputs);
@@ -291,12 +299,13 @@ function rowsToCsv(rows, getRegionData) {
       provider, model, r.deployment,
       pricing?.mode || "",
       r.pp && pricing?.hasPP ? "Yes" : "No",
-      r.inTokens, r.outTokens, r.cachedTokens, r.ptus, isPtu ? r.hours : "",
+      r.inTokens, r.outTokens, r.cachedTokens, r.cacheWriteTokens, r.ptus, isPtu ? r.hours : "",
       isTokens ? money(costOf("Input")) : "",
       isTokens ? money(costOf("Output")) : "",
       isTokens ? money(costOf("Cached Input")) : "",
+      isTokens ? money(costOf("Cache Write")) : "",
       isPtu ? money(ptuCost) : "",
-      meterOf("Input"), meterOf("Output"), meterOf("Cached Input"),
+      meterOf("Input"), meterOf("Output"), meterOf("Cached Input"), meterOf("Cache Write"),
       isPtu ? (pricing.ptu.meterName || "") : "",
       money(total),
     ]);

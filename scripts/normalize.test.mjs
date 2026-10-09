@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { normalize, _internals } from "./normalize.mjs";
+import { buildCategoryMatrix, buildRegionCalcData, calcPricing, calcRowTotal } from "../src/lib/data.js";
 
 const { deployment, direction, scopeOf, category, modelName, priorityProcessing } = _internals;
 
@@ -83,6 +84,94 @@ test("priority processing (pp) meters are flagged, standard meters are not", () 
   assert.equal(priorityProcessing("gpt 4.1 Inp regnl"), false);
   assert.equal(normalize(row({ skuName: "5 mini pp Inp Gl" })).priorityProcessing, true);
   assert.equal(normalize(row({ skuName: "5.4 opt Dz" })).priorityProcessing, false);
+});
+
+test("newer GPT families have consistent context-tier names across billing meters", () => {
+  const families = [
+    ["Azure OpenAI GPT5", "5.6 terra", "GPT 5.6 terra"],
+    ["Azure OpenAI GPT5", "5.6 luna", "GPT 5.6 luna"],
+    ["Azure OpenAI GPT5", "5.6 sol", "GPT 5.6 sol"],
+    ["Azure OpenAI GPT6", "6-astra", "GPT 6 astra"],
+    ["Azure OpenAI GPT6", "6-luna", "GPT 6 luna"],
+    ["Azure OpenAI GPT6", "6-sol", "GPT 6 sol"],
+    ["Azure OpenAI GPT6", "6.1-sol", "GPT 6.1 sol"],
+  ];
+  const billing = [
+    ["Inp", "Input"], ["Opt", "Output"],
+    ["Cd Inp", "Cached Input"], ["Cd Wr", "Cache Write"],
+  ];
+  for (const [productName, prefix, expected] of families) {
+    for (const [context, tier] of [["ShortCo", "short"], ["LongCo", "long"]]) {
+      for (const [billingToken, dir] of billing) {
+        for (const processing of ["Std", "PP"]) {
+          for (const [scope, dep] of [["Gl", "Global"], ["DZ", "Data Zone"]]) {
+            const skuName = `${prefix} ${context} ${billingToken} ${processing} ${scope}`;
+            const r = normalize(row({ productName, skuName, meterName: `${skuName} 1M Tokens` }));
+            assert.equal(r.model, `${expected} (${tier} context)`, skuName);
+            assert.equal(r.direction, dir, skuName);
+            assert.equal(r.deployment, dep, skuName);
+            assert.equal(r.priorityProcessing, processing === "PP", skuName);
+            assert.equal(r.category, "Tokens");
+            assert.equal(r.lowConfidence, false);
+            assert.equal(r.skuName, skuName);
+          }
+        }
+      }
+    }
+  }
+  assert.equal(modelName("Azure OpenAI GPT6", "gpt-6.1-sol-longco-cd-wr-std-gl"),
+    "GPT 6.1 sol (long context)");
+  assert.equal(modelName("Azure OpenAI GPT6", "GPT 6.1 sol Short Co Inp Std Gl"),
+    "GPT 6.1 sol (short context)");
+  // "Std" is a meaningful image quality variant, not a GPT serving tier.
+  assert.equal(modelName("Azure OpenAI Media", "Image Dall-E 3 Std Low Res"),
+    "Image Dall E 3 Std Low Res");
+});
+
+test("compact GPT 5.6 Flex meters retain context and serving-tier price distinctions", () => {
+  for (const variant of ["terra", "luna", "sol"]) {
+    for (const [context, tier] of [["ShCo", "short"], ["LoCo", "long"]]) {
+      for (const billing of ["Inp", "Opt", "Cd Inp", "Cd Wr"]) {
+        const skuName = `56${variant} ${context} ${billing} Fl Gl`;
+        const r = normalize(row({ skuName, meterName: `${skuName} 1M Tokens` }));
+        assert.equal(r.model, `GPT 5.6 ${variant} (${tier} context) Flex`);
+        assert.notEqual(r.model, modelName("Azure OpenAI GPT5", `5.6 ${variant} ${context} ${billing} Std Gl`));
+        assert.equal(r.direction, direction(billing));
+        assert.equal(r.deployment, "Global");
+      }
+    }
+  }
+});
+
+test("cache-write meters do not collapse into cached-input prices after name normalization", () => {
+  const records = [];
+  for (const [context, multiplier] of [["ShortCo", 1], ["LongCo", 2]]) {
+    for (const [billing, price] of [["Inp", 2], ["Opt", 10], ["Cd Inp", 0.1], ["Cd Wr", 2.5]]) {
+      for (const processing of ["Std", "PP"]) {
+        const skuName = `6.1-sol ${context} ${billing} ${processing} Gl`;
+        records.push(normalize(row({
+          productName: "Azure OpenAI GPT6", skuName, meterName: `${skuName} 1M Tokens`,
+          retailPrice: price * multiplier * (processing === "PP" ? 2 : 1),
+        })));
+      }
+    }
+  }
+  const matrix = buildCategoryMatrix(records, "Tokens");
+  assert.equal(matrix.rows.length, 2);
+  const short = matrix.rows.find((r) => r.model === "GPT 6.1 sol (short context)");
+  assert.deepEqual(short.cells.Global.map((c) => [c.key, c.p.price, c.pp.price]), [
+    ["Input", 2, 4], ["Output", 10, 20], ["Cached Input", 0.1, 0.2], ["Cache Write", 2.5, 5],
+  ]);
+
+  const regionData = buildRegionCalcData(records, "eastus2");
+  const inputs = { inTokens: 1, outTokens: 1, cachedTokens: 1, cacheWriteTokens: 1 };
+  for (const [tier, multiplier] of [["short", 1], ["long", 2]]) {
+    const key = `OpenAI||GPT 6.1 sol (${tier} context)`;
+    const pricing = calcPricing(regionData, key, "Global");
+    assert.equal(calcRowTotal(pricing, inputs), 14.6 * multiplier);
+    assert.equal(calcRowTotal(calcPricing(regionData, key, "Global", true), inputs), 29.2 * multiplier);
+    assert.equal(calcRowTotal(pricing, { cachedTokens: 1 }), 0.1 * multiplier);
+  }
 });
 
 test("scopeOf one-word datazone and regn", () => {
