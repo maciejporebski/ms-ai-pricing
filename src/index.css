@@ -214,6 +214,7 @@ button.link:hover { text-decoration: underline; background: none; }
   border-radius: var(--radius); box-shadow: var(--shadow-2); padding: 14px;
 }
 .calc-selectors, .calc-inputs { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-start; }
+.calc-selectors { min-width: 0; max-width: 100%; }
 .calc-inputs { flex: 1; }
 .calc-num input { min-width: 110px; width: 120px; }
 .calc-num.disabled { opacity: 0.4; }

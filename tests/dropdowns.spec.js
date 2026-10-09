@@ -49,7 +49,7 @@ async function expectReadableOptions(page) {
   expect(clipped).toEqual([]);
 }
 
-for (const width of [1280, 375]) {
+for (const width of [1280, 375, 320]) {
   for (const tab of ["retail", "calc"]) {
     test(`${tab} model dropdown shows complete labels at ${width}px`, async ({ page }) => {
       await page.setViewportSize({ width, height: 900 });
@@ -63,6 +63,9 @@ for (const width of [1280, 375]) {
       }
 
       const input = container.getByRole("combobox", { name: "Model", exact: true });
+      expect((await input.boundingBox()).width).toBeLessThanOrEqual(
+        (await container.boundingBox()).width - 30
+      );
       if (width === 1280) {
         expect((await input.boundingBox()).width).toBeGreaterThanOrEqual(320);
       }
