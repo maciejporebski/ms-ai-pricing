@@ -14,7 +14,7 @@ export async function loadData() {
   return { records: pricing, meta };
 }
 
-export const TOKEN_DIRECTIONS = ["Input", "Output", "Cached Input"];
+export const TOKEN_DIRECTIONS = ["Input", "Output", "Cached Input", "Cache Write"];
 
 export function buildRegionLabels(records) {
   const map = new Map();
@@ -101,7 +101,7 @@ export function orderDeployments(list) {
 export const CATEGORY_ORDER = ["Tokens", "PTU", "Images", "Pages", "Characters", "Search", "Session", "Hosting", "Calls", "Other"];
 
 export const CATEGORY_HINTS = {
-  Tokens: "USD per 1M tokens. In = input, Out = output, Cached = cached input.",
+  Tokens: "USD per 1M tokens. In = input, Out = output, Cached = cached input; Cache Write is billed separately. Short/long context tiers have separate prices.",
   PTU: "Provisioned Throughput Units — billed per PTU. /hr = hourly (pay-as-you-go), /mo = monthly; reservation commitments show their term (1 Month / 1 Year).",
   Images: "Billed per image / megapixel.",
   Pages: "Billed per page (most Doc AI / OCR meters are per 1K pages).",
@@ -127,7 +127,7 @@ export function categoriesPresent(records) {
 //
 // ptuRecords (optional): provider-level PTU rows used to graft Provisioned
 // columns onto every model row, since PTU is billed per-provider not per-model.
-const DIR_RANK = { Input: 0, Output: 1, "Cached Input": 2 };
+const DIR_RANK = { Input: 0, Output: 1, "Cached Input": 2, "Cache Write": 3 };
 function seriesRank(s) {
   return DIR_RANK[s] != null ? DIR_RANK[s] : 100;
 }
@@ -389,6 +389,7 @@ export function calcRowTotal(pricing, inputs) {
 export function calcTokenCosts(pricing, inputs) {
   const dirs = [
     ["Input", inputs.inTokens], ["Output", inputs.outTokens], ["Cached Input", inputs.cachedTokens],
+    ["Cache Write", inputs.cacheWriteTokens],
   ];
   return dirs.map(([dir, millions]) => {
     const p = pricing?.prices?.[dir];

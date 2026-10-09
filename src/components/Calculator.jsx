@@ -13,7 +13,7 @@ function newRow() {
   return {
     id: ++rowUid,
     region: "", model: "", deployment: "",
-    inTokens: "", outTokens: "", cachedTokens: "",
+    inTokens: "", outTokens: "", cachedTokens: "", cacheWriteTokens: "",
     ptus: "", hours: "730", pp: false,
   };
 }
@@ -81,7 +81,8 @@ function CalcRow({ record, regionData, regions, regionLabels, onChange, onRemove
 
   const inputs = {
     inTokens: num(record.inTokens), outTokens: num(record.outTokens),
-    cachedTokens: num(record.cachedTokens), ptus: num(record.ptus), hours: num(record.hours),
+    cachedTokens: num(record.cachedTokens), cacheWriteTokens: num(record.cacheWriteTokens),
+    ptus: num(record.ptus), hours: num(record.hours),
   };
   const total = calcRowTotal(pricing, inputs);
 
@@ -129,6 +130,11 @@ function CalcRow({ record, regionData, regions, regionLabels, onChange, onRemove
         <NumberField label="Cached (M tokens)" hint={isTokens ? rate("Cached Input") : null} cost={costOf("Cached Input")}
           value={record.cachedTokens} disabled={!isTokens}
           onChange={(v) => onChange({ cachedTokens: v })} />
+        {isTokens && pricing.prices["Cache Write"] && (
+          <NumberField label="Cache write (M tokens)" hint={rate("Cache Write")} cost={costOf("Cache Write")}
+            value={record.cacheWriteTokens} disabled={false}
+            onChange={(v) => onChange({ cacheWriteTokens: v })} />
+        )}
         <NumberField label="PTUs" hint={isPtu ? `${fmtUSD(pricing.ptu.price)} /${pricing.ptu.measure}` : null} cost={ptuCost}
           value={record.ptus} disabled={!isPtu}
           onChange={(v) => onChange({ ptus: v })} />

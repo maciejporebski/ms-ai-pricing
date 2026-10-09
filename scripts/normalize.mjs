@@ -64,6 +64,7 @@ function direction(s0) {
   const cached = /\bcd\b|\bcchd\b|cache|cached/.test(s);
   const input = /\binp\b|\binput\b|\binpt\b|-in-|\bin-ft\b|text input|\bin\b/.test(s);
   const output = /\boutp\b|\boutput\b|\bout\b|\boutpt\b|\bopt\b|-out-|\bout-ft\b/.test(s);
+  if (cached && /\bwr\b|\bwrite\b/.test(s)) return "Cache Write";
   if (cached) return "Cached Input";
   if (output) return "Output";
   if (input) return "Input";
@@ -71,6 +72,7 @@ function direction(s0) {
 }
 
 const STRIP = [
+  /\b(?:cd|cache|cached)[\s-]+(?:wr|write)\b/gi,
   /\bprovisioned managed\b/gi, /\bdeployment hosting unit\b/gi, /\bhosting\b/gi,
   /\bdata zone\b/gi, /\bdatazone\b/gi, /\bdzone\b/gi, /\bdzn\b/gi, /\bdz\b/gi,
   /\bglobal\b/gi, /\bglbl\b/gi, /\bgl\b/gi,
@@ -102,8 +104,16 @@ function familyFromProduct(productName) {
 function modelName(productName, sku) {
   let m = splitCamel(sku);
   m = m.replace(/^FW\s+/i, "").replace(/^Mngd\s+/i, "");
+  if (familyFromProduct(productName) === "GPT" || /^gpt\b/i.test(m)) {
+    // Flex meters abbreviate both the version/variant and the serving tier.
+    m = m.replace(/^56(terra|luna|sol)\b/i, "5.6 $1")
+      .replace(/\bstd\b/gi, " ").replace(/\bfl\b/gi, "Flex");
+  }
   for (const re of STRIP) m = m.replace(re, " ");
   m = m.replace(/[-_]+/g, " ").replace(/\s+/g, " ").trim();
+  // Keep context pricing tiers distinct without leaking Azure's "ShortCo"/"LongCo" abbreviations.
+  m = m.replace(/\b(short|long|sh|lo)\s*co\b/gi,
+    (_, tier) => `(${/^s/i.test(tier) ? "short" : "long"} context)`);
   if (!m) return productName.replace(/^Azure\s+/i, "").replace(/\s+Models$/i, "");
   // Canonicalize a literal leading "gpt" to "GPT" (e.g. "gpt 4.1 mini").
   m = m.replace(/^gpt\b/i, "GPT");

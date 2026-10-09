@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { normalize } from "../scripts/normalize.mjs";
 
 const REGION = "Sweden Central";
 
@@ -268,4 +269,71 @@ test("clear button resets the calculator to a single empty row", async ({ page }
   await expect(calc.getByTestId("calc-row")).toHaveCount(1);
   await expect(calc.getByTestId("calc-row").first().getByRole("combobox", { name: "Location", exact: true }))
     .toHaveValue("");
+});
+
+async function useNewerGptMeters(page) {
+  const records = [];
+  for (const [prefix, productName] of [
+    ["5.6 terra", "Azure OpenAI GPT5"],
+    ["6-astra", "Azure OpenAI GPT6"],
+    ["6.1-sol", "Azure OpenAI GPT6"],
+  ]) {
+    for (const [context, multiplier] of [["ShortCo", 1], ["LongCo", 2]]) {
+      for (const [billing, price] of [["Inp", 2], ["Opt", 10], ["Cd Inp", 0.1], ["Cd Wr", 2.5]]) {
+        for (const processing of ["Std", "PP"]) {
+          const skuName = `${prefix} ${context} ${billing} ${processing} Gl`;
+          records.push(normalize({
+            productName, skuName, meterName: `${skuName} 1M Tokens`,
+            armRegionName: "swedencentral", location: REGION,
+            unitOfMeasure: "1M", retailPrice: price * multiplier * (processing === "PP" ? 2 : 1),
+            type: "Consumption", effectiveStartDate: "2026-10-09T00:00:00Z",
+          }));
+        }
+      }
+    }
+  }
+  await page.route("**/data/pricing.json", (route) => route.fulfill({ json: records }));
+  await page.route("**/data/meta.json", (route) => route.fulfill({ json: {} }));
+}
+
+test("newer GPT names group billing meters but keep context tiers and cache writes distinct", async ({ page }) => {
+  await useNewerGptMeters(page);
+  await waitForData(page);
+  await pickRegion(page);
+  const table = page.getByTestId("table-Tokens");
+  await expect(table.locator("tbody tr")).toHaveCount(6);
+  for (const model of ["GPT 5.6 terra", "GPT 6 astra", "GPT 6.1 sol"]) {
+    await expect(table.getByRole("button", { name: `${model} (short context)`, exact: true })).toBeVisible();
+    await expect(table.getByRole("button", { name: `${model} (long context)`, exact: true })).toBeVisible();
+  }
+  await pickOption(page, "Model", "GPT 6.1 sol (short context)");
+  const prices = table.locator("tbody tr").first();
+  await expect(prices).toContainText("Cached$0.10 (pp: $0.20)");
+  await expect(prices).toContainText("Cache Write$2.50 (pp: $5.00)");
+});
+
+test("calculator prices normalized GPT context tiers including cache writes", async ({ page }) => {
+  await useNewerGptMeters(page);
+  await waitForData(page);
+  await page.getByTestId("tab-calc").click();
+  const row = page.getByTestId("calculator").getByTestId("calc-row").first();
+  await pickInRow(row, page, "Location", REGION);
+  await pickInRow(row, page, "Model", "OpenAI — GPT 6.1 sol (short context)");
+  await pickInRow(row, page, "Hosting type", "Global");
+  await row.getByRole("spinbutton", { name: /^Cached \(M tokens\)/ }).fill("1");
+  await expect(row.getByTestId("calc-total")).toContainText("$0.10");
+  await row.getByRole("spinbutton", { name: /^Cache write \(M tokens\)/ }).fill("1");
+  await expect(row.getByTestId("calc-total")).toContainText("$2.60");
+  await row.getByTestId("calc-pp").locator("input").check();
+  await expect(row.getByTestId("calc-total")).toContainText("$5.20");
+  await row.getByTestId("calc-pp").locator("input").uncheck();
+  await pickInRow(row, page, "Model", "OpenAI — GPT 6.1 sol (long context)");
+  await pickInRow(row, page, "Hosting type", "Global");
+  await expect(row.getByTestId("calc-total")).toContainText("$5.20");
+  await page.reload();
+  await expect(page.getByTestId("filters")).toBeVisible();
+  await page.getByTestId("tab-calc").click();
+  const restored = page.getByTestId("calculator").getByTestId("calc-row").first();
+  await expect(restored.getByRole("spinbutton", { name: /^Cache write \(M tokens\)/ })).toHaveValue("1");
+  await expect(restored.getByTestId("calc-total")).toContainText("$5.20");
 });
