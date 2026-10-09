@@ -145,7 +145,7 @@ export default function Filters({ records, filters, setFilter, regionLabels, res
         onChange={(v) => setFilter({ region: v })} />
       <Combobox label="Provider" value={filters.provider} options={providers}
         onChange={(v) => setFilter({ provider: v, model: "" })} />
-      <Combobox label="Model" value={filters.model} options={models}
+      <Combobox label="Model" value={filters.model} options={models} className="combobox-model"
         onChange={(v) => setFilter({ model: v })} />
       <Combobox label="Category" value={filters.category} options={categories}
         onChange={(v) => setFilter({ category: v })} />
