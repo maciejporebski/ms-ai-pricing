@@ -118,7 +118,8 @@ a { color: var(--accent); }
 .filter-search input { min-width: 200px; }
 
 /* Combobox (searchable dropdown) */
-.combobox { position: relative; }
+.combobox { position: relative; max-width: 100%; }
+.combobox-model { width: 320px; }
 .combobox-wrap { position: relative; }
 .combobox-wrap input {
   background: var(--panel2);
@@ -131,6 +132,7 @@ a { color: var(--accent); }
   width: 100%;
 }
 .combobox-wrap input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.filter.combobox input { min-width: 0; }
 .combobox-list {
   position: absolute;
   top: calc(100% + 2px);
@@ -152,9 +154,8 @@ a { color: var(--accent); }
   border-radius: 4px;
   font-size: 13px;
   cursor: pointer;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 .combobox-option.active, .combobox-option:hover { background: var(--accent-tint); color: var(--accent2); }
 .combobox-option.selected { font-weight: 600; color: var(--accent2); }

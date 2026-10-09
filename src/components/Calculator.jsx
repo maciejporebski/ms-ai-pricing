@@ -104,6 +104,7 @@ function CalcRow({ record, regionData, regions, regionLabels, onChange, onRemove
           placeholder="Select region…"
           onChange={(v) => onChange({ region: v, model: "", deployment: "" })} />
         <Combobox label="Model" value={record.model} options={modelOptions} labels={modelLabels}
+          className="combobox-model"
           placeholder={record.region ? "Select model…" : "Pick a region first"}
           onChange={(v) => onChange({ model: v, deployment: "" })} />
         <Combobox label="Hosting type" value={record.deployment} options={deployments} labels={depLabels}
